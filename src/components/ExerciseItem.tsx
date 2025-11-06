@@ -1,0 +1,85 @@
+import { motion } from 'framer-motion'
+import { useTheme } from '../contexts/ThemeContext'
+
+interface ExerciseItemProps {
+  exercise: {
+    name: string
+    sets: string
+    video: string
+  }
+  isCompleted: boolean
+  onToggle: () => void
+  onWatchVideo: () => void
+}
+
+const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo }: ExerciseItemProps) => {
+  const { theme } = useTheme()
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      className={`${
+        theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-200/50'
+      } rounded-lg p-4 border-2 transition-all ${
+        isCompleted 
+          ? 'border-green-500 bg-green-500/10' 
+          : theme === 'dark' ? 'border-slate-600' : 'border-gray-300'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-2">
+            {/* Casilla de selección - Tamaño y forma fijos */}
+            <button
+              onClick={onToggle}
+              className={`flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
+                isCompleted
+                  ? 'bg-green-500 border-green-500'
+                  : theme === 'dark' 
+                    ? 'border-slate-400 hover:border-primary-400 bg-transparent' 
+                    : 'border-gray-400 hover:border-primary-500 bg-transparent'
+              }`}
+              aria-label={isCompleted ? 'Marcar como no completado' : 'Marcar como completado'}
+            >
+              {isCompleted && (
+                <svg 
+                  className="w-4 h-4 text-white" 
+                  fill="currentColor" 
+                  viewBox="0 0 20 20"
+                  style={{ minWidth: '16px', minHeight: '16px' }}
+                >
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              )}
+            </button>
+            <h3 className={`text-lg font-semibold ${
+              isCompleted 
+                ? 'text-green-300 line-through' 
+                : theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
+              {exercise.name}
+            </h3>
+          </div>
+          <p className={`ml-9 ${
+            theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+          }`}>
+            {exercise.sets}
+          </p>
+        </div>
+        <button
+          onClick={onWatchVideo}
+          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+          </svg>
+          Ver Video
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+export default ExerciseItem
+
