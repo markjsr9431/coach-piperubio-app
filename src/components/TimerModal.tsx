@@ -22,9 +22,9 @@ const TimerModal = ({ onClose, onMinimize, isMinimized = false }: TimerModalProp
     restTime,
     setRestTime,
     currentRound,
-    setCurrentRound,
+    //setCurrentRound,
     isWorkPhase,
-    setIsWorkPhase,
+    //setIsWorkPhase,
     resetTimer,
   } = useTimer()
 

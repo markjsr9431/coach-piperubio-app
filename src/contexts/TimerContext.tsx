@@ -116,6 +116,8 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
         setMode,
         isRunning,
         setIsRunning,
+        setCurrentRound,
+        setIsWorkPhase,
         time,
         setTime,
         rounds,
@@ -125,9 +127,9 @@ export const TimerProvider = ({ children }: { children: ReactNode }) => {
         restTime,
         setRestTime,
         currentRound,
-        setCurrentRound,
+        //setCurrentRound,
         isWorkPhase,
-        setIsWorkPhase,
+        //setIsWorkPhase,
         resetTimer,
       }}
     >
