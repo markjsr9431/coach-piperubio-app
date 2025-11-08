@@ -23,6 +23,8 @@ interface Client {
   lastLogin?: any
   subscriptionStartDate?: any
   subscriptionEndDate?: any
+  profilePhoto?: string | null
+  avatar?: string | null
   progress?: {
     monthlyProgress: number
     completedDays: number
@@ -110,6 +112,8 @@ const HomePage = () => {
                 lastLogin: data.lastLogin || undefined,
                 subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
+                profilePhoto: data.profilePhoto || null,
+                avatar: data.avatar || null,
                 progress
               }
                 return client
@@ -168,6 +172,8 @@ const HomePage = () => {
                 lastLogin: data.lastLogin || undefined,
                 subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
+                profilePhoto: data.profilePhoto || null,
+                avatar: data.avatar || null,
                 progress
               }
               return client
@@ -511,6 +517,21 @@ const HomePage = () => {
                               </div>
                             )}
                             
+                            {/* Avatar o Foto del Cliente */}
+                            {(client.avatar || client.profilePhoto) && (
+                              <div className="mb-4 flex justify-center">
+                                {client.profilePhoto ? (
+                                  <img
+                                    src={client.profilePhoto}
+                                    alt={client.name}
+                                    className="w-20 h-20 rounded-full object-cover border-4 border-primary-500"
+                                  />
+                                ) : client.avatar ? (
+                                  <div className="text-6xl">{client.avatar}</div>
+                                ) : null}
+                              </div>
+                            )}
+                            
                             <div>
                               <div className="flex items-start justify-between mb-4">
                                 <div>
@@ -640,6 +661,21 @@ const HomePage = () => {
                                   createdAt={client.createdAt}
                                   lastLogin={client.lastLogin}
                                 />
+                              </div>
+                            )}
+                            
+                            {/* Avatar o Foto del Cliente */}
+                            {(client.avatar || client.profilePhoto) && (
+                              <div className="mb-4 flex justify-center">
+                                {client.profilePhoto ? (
+                                  <img
+                                    src={client.profilePhoto}
+                                    alt={client.name}
+                                    className="w-20 h-20 rounded-full object-cover border-4 border-primary-500"
+                                  />
+                                ) : client.avatar ? (
+                                  <div className="text-6xl">{client.avatar}</div>
+                                ) : null}
                               </div>
                             )}
                             

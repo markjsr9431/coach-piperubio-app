@@ -21,12 +21,12 @@ const ProgressTracker = ({
 }: ProgressTrackerProps) => {
   const { theme } = useTheme()
 
-  // Determinar si el usuario es nuevo (creado hace menos de 7 días) o no ha iniciado sesión en 7 días
+  // Determinar si el usuario es nuevo (creado hace menos de 2 semanas) o no ha iniciado sesión en 7 días
   const isNewUser = () => {
     if (!createdAt) return false
     const createdDate = createdAt.toDate ? createdAt.toDate() : new Date(createdAt)
     const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
-    return daysSinceCreation < 7
+    return daysSinceCreation < 14 // 2 semanas
   }
 
   const hasNotLoggedInRecently = () => {

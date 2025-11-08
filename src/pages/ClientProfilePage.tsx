@@ -8,6 +8,7 @@ import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { updateProfile } from 'firebase/auth'
 import TopBanner from '../components/TopBanner'
+import AvatarSelector from '../components/AvatarSelector'
 
 const ClientProfilePage = () => {
   const navigate = useNavigate()
@@ -26,7 +27,9 @@ const ClientProfilePage = () => {
     cedula: '',
     rh: '',
     eps: '',
-    profilePhoto: null as string | null
+    profilePhoto: null as string | null,
+    avatar: null as string | null,
+    gender: null as 'male' | 'female' | null
   })
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
@@ -53,7 +56,9 @@ const ClientProfilePage = () => {
             cedula: data.cedula || '',
             rh: data.rh || '',
             eps: data.eps || '',
-            profilePhoto: data.profilePhoto || null
+            profilePhoto: data.profilePhoto || null,
+            avatar: data.avatar || null,
+            gender: data.gender || null
           })
           if (data.profilePhoto) {
             setPhotoPreview(data.profilePhoto)
@@ -249,6 +254,8 @@ const ClientProfilePage = () => {
           rh: formData.rh.trim() || null,
           eps: formData.eps.trim() || null,
           profilePhoto: photoUrl || null,
+          avatar: formData.avatar || null,
+          gender: formData.gender || null,
           updatedAt: serverTimestamp(),
           updatedBy: user?.email || ''
         })
@@ -375,14 +382,46 @@ const ClientProfilePage = () => {
               ? 'bg-slate-800/80 border border-slate-700' 
               : 'bg-white border border-gray-200'
           }`}>
-            {/* Foto de Perfil */}
+            {/* Avatar o Foto de Perfil */}
             <div className="mb-6">
               <label className={`block text-sm font-semibold mb-3 ${
                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
               }`}>
-                Fotografía de Perfil
+                Avatar o Fotografía de Perfil
               </label>
-              <div className="flex items-start gap-6">
+              
+              {/* Selector de Avatar */}
+              <div className="mb-4">
+                <AvatarSelector
+                  selectedAvatar={formData.avatar}
+                  onSelect={(avatar) => setFormData(prev => ({ ...prev, avatar, profilePhoto: null }))}
+                  gender={formData.gender}
+                  onGenderChange={(gender) => setFormData(prev => ({ ...prev, gender, avatar: null }))}
+                />
+              </div>
+
+              {/* Vista previa del avatar seleccionado */}
+              {formData.avatar && (
+                <div className="mb-4 flex items-center gap-4">
+                  <div className="text-6xl">{formData.avatar}</div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, avatar: null }))}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                  >
+                    Eliminar Avatar
+                  </button>
+                </div>
+              )}
+
+              {/* Opción de subir foto (opcional) */}
+              <div className="mt-4">
+                <label className={`block text-sm font-medium mb-2 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                }`}>
+                  O subir fotografía (opcional)
+                </label>
+                <div className="flex items-start gap-6">
                 <div className="flex-shrink-0">
                   {photoPreview ? (
                     <div className="relative">
@@ -424,6 +463,7 @@ const ClientProfilePage = () => {
                   <label
                     htmlFor="photo-upload"
                     className="inline-block px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors cursor-pointer"
+                    onClick={() => setFormData(prev => ({ ...prev, avatar: null }))}
                   >
                     {photoPreview ? 'Cambiar Foto' : 'Subir Foto'}
                   </label>
@@ -432,6 +472,7 @@ const ClientProfilePage = () => {
                   }`}>
                     Máximo 128x128 píxeles a 72ppp. La imagen se redimensionará automáticamente.
                   </p>
+                </div>
                 </div>
               </div>
             </div>
