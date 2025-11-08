@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import HomePage from './pages/HomePage'
 import WorkoutPage from './pages/WorkoutPage'
 import ClientWorkoutPage from './pages/ClientWorkoutPage'
+import ExercisesPage from './pages/ExercisesPage'
 import LoginPage from './pages/Login'
 
 // Componente para proteger rutas que requieren autenticación
@@ -62,6 +63,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <WorkoutPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/exercises" 
+        element={
+          <ProtectedRoute>
+            <ExercisesPage />
           </ProtectedRoute>
         } 
       />

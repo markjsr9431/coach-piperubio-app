@@ -1,8 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useTimer } from '../contexts/TimerContext'
+import { useAuth } from '../contexts/AuthContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
@@ -18,6 +19,8 @@ const WorkoutPage = () => {
   const { day, clientId } = useParams<{ day: string; clientId?: string }>()
   const navigate = useNavigate()
   const { theme } = useTheme()
+  const { user } = useAuth()
+  const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
   const {
     mode,
     isRunning,
@@ -39,6 +42,10 @@ const WorkoutPage = () => {
   const [isTimerMinimized, setIsTimerMinimized] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
   const [lastCompletedCount, setLastCompletedCount] = useState(0)
+  
+  // Timer para tracking de tiempo de entrenamiento
+  const workoutStartTime = useRef<Date | null>(null)
+  const workoutTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const totalExercises = workout?.sections.reduce((acc, section) => acc + section.exercises.length, 0) || 0
   const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
@@ -83,7 +90,18 @@ const WorkoutPage = () => {
     // Reset completion state when day changes
     setShowComplete(false)
     setLastCompletedCount(0)
-  }, [day, workout])
+    
+    // Iniciar timer de entrenamiento cuando se carga la página (solo para clientes)
+    if (!isCoach && clientId && workout) {
+      workoutStartTime.current = new Date()
+    }
+    
+    return () => {
+      if (workoutTimerRef.current) {
+        clearInterval(workoutTimerRef.current)
+      }
+    }
+  }, [day, workout, clientId, isCoach])
 
   // Guardar progreso en Firestore cuando cambia
   useEffect(() => {
@@ -94,12 +112,20 @@ const WorkoutPage = () => {
         const progressRef = doc(db, 'clients', clientId, 'progress', `day-${dayIndex + 1}`)
         const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
         
+        // Calcular tiempo de entrenamiento si se completó
+        let workoutDuration = null
+        if (progress === 100 && workoutStartTime.current) {
+          const endTime = new Date()
+          workoutDuration = Math.round((endTime.getTime() - workoutStartTime.current.getTime()) / 1000) // en segundos
+        }
+        
         await setDoc(progressRef, {
           dayIndex,
           progress,
           completedExercises: completedExercises.size,
           totalExercises,
           completedAt: progress === 100 ? serverTimestamp() : null,
+          workoutDuration: workoutDuration,
           lastUpdated: serverTimestamp()
         }, { merge: true })
 
@@ -115,11 +141,34 @@ const WorkoutPage = () => {
         // Calcular días completados
         const completedDays = Object.values(dailyProgress).filter(Boolean).length
         
+        // Calcular tiempo promedio de entrenamiento
+        const allProgressRefs = await Promise.all(
+          Array.from({ length: workouts.length }, async (_, i) => {
+            try {
+              const dayProgressRef = doc(db, 'clients', clientId, 'progress', `day-${i + 1}`)
+              const dayProgressDoc = await getDoc(dayProgressRef)
+              if (dayProgressDoc.exists()) {
+                const dayData = dayProgressDoc.data()
+                return dayData.workoutDuration || null
+              }
+            } catch (error) {
+              // Ignorar errores de días sin progreso
+            }
+            return null
+          })
+        )
+        
+        const validDurations = allProgressRefs.filter((d): d is number => d !== null)
+        const averageWorkoutTime = validDurations.length > 0
+          ? Math.round(validDurations.reduce((sum, d) => sum + d, 0) / validDurations.length)
+          : null
+
         await setDoc(summaryRef, {
           totalDays: workouts.length,
           completedDays,
           monthlyProgress: (completedDays / workouts.length) * 100,
           dailyProgress,
+          averageWorkoutTime,
           lastUpdated: serverTimestamp()
         }, { merge: true })
       } catch (error) {
@@ -234,31 +283,34 @@ const WorkoutPage = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          {/* Botón de cronómetro - Solo visible en desktop, en móvil está en el banner */}
-          <div className="hidden sm:flex items-center justify-end mb-4">
-            <button
-              onClick={() => setShowTimer(true)}
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Cronómetro
-            </button>
-          </div>
-          
-          {/* Botón de cronómetro móvil - Separado del banner con más espacio */}
-          <div className="sm:hidden flex justify-end mb-6 mt-2">
-            <button
-              onClick={() => setShowTimer(true)}
-              className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Cronómetro
-            </button>
-          </div>
+          {/* Botón de cronómetro - Solo visible para clientes, no para el coach */}
+          {!isCoach && (
+            <>
+              <div className="hidden sm:flex items-center justify-end mb-4">
+                <button
+                  onClick={() => setShowTimer(true)}
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Cronómetro
+                </button>
+              </div>
+              
+              <div className="sm:hidden flex justify-end mb-6 mt-2">
+                <button
+                  onClick={() => setShowTimer(true)}
+                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Cronómetro
+                </button>
+              </div>
+            </>
+          )}
 
           <h1 className={`text-4xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
@@ -359,47 +411,51 @@ const WorkoutPage = () => {
         />
       )}
 
-      {/* Timer Modal */}
-      <AnimatePresence>
-        {showTimer && !isTimerMinimized && (
-          <TimerModal 
-            onClose={() => {
-              setShowTimer(false)
-              setIsTimerMinimized(false)
-              resetTimer()
-            }} 
-            onMinimize={() => {
-              setIsTimerMinimized(true)
-              setShowTimer(false)
-            }}
-            isMinimized={isTimerMinimized}
-          />
-        )}
-      </AnimatePresence>
+      {/* Timer Modal - Solo visible para clientes */}
+      {!isCoach && (
+        <AnimatePresence>
+          {showTimer && !isTimerMinimized && (
+            <TimerModal 
+              onClose={() => {
+                setShowTimer(false)
+                setIsTimerMinimized(false)
+                resetTimer()
+              }} 
+              onMinimize={() => {
+                setIsTimerMinimized(true)
+                setShowTimer(false)
+              }}
+              isMinimized={isTimerMinimized}
+            />
+          )}
+        </AnimatePresence>
+      )}
 
-      {/* Timer Flotante */}
-      <AnimatePresence>
-        {isTimerMinimized && (
-          <TimerFloating
-            time={time}
-            mode={mode}
-            isRunning={isRunning}
-            isWorkPhase={isWorkPhase}
-            currentRound={currentRound}
-            rounds={rounds}
-            onMaximize={() => {
-              setIsTimerMinimized(false)
-              setShowTimer(true)
-            }}
-            onClose={() => {
-              setIsTimerMinimized(false)
-              setShowTimer(false)
-              resetTimer()
-            }}
-            onToggle={() => setIsRunning(!isRunning)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Timer Flotante - Solo visible para clientes */}
+      {!isCoach && (
+        <AnimatePresence>
+          {isTimerMinimized && (
+            <TimerFloating
+              time={time}
+              mode={mode}
+              isRunning={isRunning}
+              isWorkPhase={isWorkPhase}
+              currentRound={currentRound}
+              rounds={rounds}
+              onMaximize={() => {
+                setIsTimerMinimized(false)
+                setShowTimer(true)
+              }}
+              onClose={() => {
+                setIsTimerMinimized(false)
+                setShowTimer(false)
+                resetTimer()
+              }}
+              onToggle={() => setIsRunning(!isRunning)}
+            />
+          )}
+        </AnimatePresence>
+      )}
 
       {/* Animación de Entrenamiento Finalizado */}
       {showComplete && (

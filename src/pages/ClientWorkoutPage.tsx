@@ -6,9 +6,10 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
-import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc, getDoc } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
+import ProgressTracker from '../components/ProgressTracker'
 
 const ClientWorkoutPage = () => {
   const navigate = useNavigate()
@@ -24,6 +25,11 @@ const ClientWorkoutPage = () => {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [clientProgress, setClientProgress] = useState<{
+    monthlyProgress: number
+    completedDays: number
+    totalDays: number
+  } | null>(null)
 
   // Cargar entrenamientos personalizados del cliente
   useEffect(() => {
@@ -60,6 +66,30 @@ const ClientWorkoutPage = () => {
     }
 
     loadWorkouts()
+  }, [clientId])
+
+  // Cargar progreso del cliente
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!clientId) return
+
+      try {
+        const progressRef = doc(db, 'clients', clientId, 'progress', 'summary')
+        const progressDoc = await getDoc(progressRef)
+        if (progressDoc.exists()) {
+          const progressData = progressDoc.data()
+          setClientProgress({
+            monthlyProgress: progressData.monthlyProgress || 0,
+            completedDays: progressData.completedDays || 0,
+            totalDays: progressData.totalDays || 30
+          })
+        }
+      } catch (error) {
+        console.error('Error loading progress:', error)
+      }
+    }
+
+    loadProgress()
   }, [clientId])
 
   // Cerrar el banner automáticamente después de 10 segundos
@@ -196,6 +226,19 @@ const ClientWorkoutPage = () => {
             <p className={`text-xl ${
               theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
             }`}>{t('workout.interactive')}</p>
+            
+            {/* Barra de Progreso del Cliente */}
+            {clientProgress && (
+              <div className="max-w-2xl mx-auto mt-6">
+                <ProgressTracker
+                  dailyProgress={0}
+                  monthlyProgress={clientProgress.monthlyProgress}
+                  completedDays={clientProgress.completedDays}
+                  totalDays={clientProgress.totalDays}
+                  showDetails={true}
+                />
+              </div>
+            )}
             
             {/* Botones de gestión - Solo para coach */}
             {isCoach && (

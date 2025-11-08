@@ -11,6 +11,21 @@ import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc } from 'firebas
 import { calculateTimeActive } from '../utils/timeUtils'
 import ProgressTracker from '../components/ProgressTracker'
 
+// Función para formatear tiempo de entrenamiento
+const formatWorkoutTime = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  } else if (minutes > 0) {
+    return `${minutes}m ${secs}s`
+  } else {
+    return `${secs}s`
+  }
+}
+
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
 interface Client {
   id: string
@@ -24,6 +39,7 @@ interface Client {
     monthlyProgress: number
     completedDays: number
     totalDays: number
+    averageWorkoutTime?: number // en segundos
   }
 }
 
@@ -86,7 +102,8 @@ const HomePage = () => {
                     progress = {
                       monthlyProgress: progressData.monthlyProgress || 0,
                       completedDays: progressData.completedDays || 0,
-                      totalDays: progressData.totalDays || 30
+                      totalDays: progressData.totalDays || 30,
+                      averageWorkoutTime: progressData.averageWorkoutTime || undefined
                     }
                   }
                 } catch (error) {
@@ -137,11 +154,12 @@ const HomePage = () => {
                 const progressDoc = await getDoc(progressRef)
                 if (progressDoc.exists()) {
                   const progressData = progressDoc.data()
-                  progress = {
-                    monthlyProgress: progressData.monthlyProgress || 0,
-                    completedDays: progressData.completedDays || 0,
-                    totalDays: progressData.totalDays || 30
-                  }
+                      progress = {
+                        monthlyProgress: progressData.monthlyProgress || 0,
+                        completedDays: progressData.completedDays || 0,
+                        totalDays: progressData.totalDays || 30,
+                        averageWorkoutTime: progressData.averageWorkoutTime || undefined
+                      }
                 }
               } catch (error) {
                 console.error(`Error loading progress for ${docSnapshot.id}:`, error)
@@ -313,13 +331,13 @@ const HomePage = () => {
             </motion.p>
           </div>
 
-          {/* Botón para agregar cliente - Solo visible para el coach */}
+          {/* Botones de acción - Solo visible para el coach */}
           {isCoach && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="mb-8 flex justify-center"
+              className="mb-8 flex justify-center gap-4 flex-wrap"
             >
               <motion.button
                 onClick={handleAddClient}
@@ -331,6 +349,17 @@ const HomePage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 {t('dashboard.addClient')}
+              </motion.button>
+              <motion.button
+                onClick={() => navigate('/exercises')}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-3 font-semibold text-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Ejercicios
               </motion.button>
             </motion.div>
           )}
@@ -468,6 +497,19 @@ const HomePage = () => {
                           theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
                         }`}>
                           ⏱️ Tiempo activo: {calculateTimeActive(client.createdAt)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tiempo promedio de entrenamiento */}
+                    {client.progress?.averageWorkoutTime && (
+                      <div className={`mb-3 p-2 rounded-lg ${
+                        theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
+                      }`}>
+                        <p className={`text-xs font-semibold ${
+                          theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
+                        }`}>
+                          ⏱️ Tiempo promedio: {formatWorkoutTime(client.progress.averageWorkoutTime)}
                         </p>
                       </div>
                     )}
