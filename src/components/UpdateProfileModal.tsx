@@ -4,7 +4,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { updateProfile, updateEmail, sendEmailVerification } from 'firebase/auth'
-import { auth, db } from '../firebaseConfig'
+import { db } from '../firebaseConfig'
 import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 
 interface UpdateProfileModalProps {

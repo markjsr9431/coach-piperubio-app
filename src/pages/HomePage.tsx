@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import TopBanner from '../components/TopBanner'
 import AddClientModal from '../components/AddClientModal'
 import { db } from '../firebaseConfig'
-import { collection, onSnapshot, doc, deleteDoc, query, where, getDocs } from 'firebase/firestore'
+import { collection, onSnapshot, doc, deleteDoc, getDocs } from 'firebase/firestore'
 import { calculateTimeActive } from '../utils/timeUtils'
 
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
@@ -25,7 +25,7 @@ const HomePage = () => {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const { t } = useLanguage()
-  const { user, isAdmin } = useAuth()
+  const { user } = useAuth()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -170,7 +170,7 @@ const HomePage = () => {
     // Los clientes se actualizarán automáticamente gracias a onSnapshot
   }
 
-  const handleDeleteClient = async (e: React.MouseEvent, clientId: string, clientEmail: string) => {
+  const handleDeleteClient = async (e: React.MouseEvent, clientId: string) => {
     e.stopPropagation() // Evitar que se active el onClick de la tarjeta
     
     if (!window.confirm(t('dashboard.deleteConfirm'))) {
@@ -340,7 +340,7 @@ const HomePage = () => {
                   >
                     {/* Botón de eliminar */}
                     <button
-                      onClick={(e) => handleDeleteClient(e, client.id, client.email)}
+                      onClick={(e) => handleDeleteClient(e, client.id)}
                       className={`absolute top-4 right-4 p-2 rounded-lg transition-colors z-10 ${
                         theme === 'dark'
                           ? 'hover:bg-red-500/20 text-red-400'
