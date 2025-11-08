@@ -20,6 +20,7 @@ interface Client {
   status: 'active' | 'inactive'
   lastWorkout?: string
   createdAt?: any
+  lastLogin?: any
   subscriptionStartDate?: any
   subscriptionEndDate?: any
   progress?: {
@@ -106,6 +107,7 @@ const HomePage = () => {
                 status: data.status || 'active',
                 lastWorkout: data.lastWorkout || undefined,
                 createdAt: data.createdAt || undefined,
+                lastLogin: data.lastLogin || undefined,
                 subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
                 progress
@@ -163,6 +165,7 @@ const HomePage = () => {
                 status: data.status || 'active',
                 lastWorkout: data.lastWorkout || undefined,
                 createdAt: data.createdAt || undefined,
+                lastLogin: data.lastLogin || undefined,
                 subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
                 progress
@@ -502,6 +505,8 @@ const HomePage = () => {
                                   completedDays={client.progress.completedDays}
                                   totalDays={client.progress.totalDays}
                                   showDetails={false}
+                                  createdAt={client.createdAt}
+                                  lastLogin={client.lastLogin}
                                 />
                               </div>
                             )}
@@ -632,6 +637,8 @@ const HomePage = () => {
                                   completedDays={client.progress.completedDays}
                                   totalDays={client.progress.totalDays}
                                   showDetails={false}
+                                  createdAt={client.createdAt}
+                                  lastLogin={client.lastLogin}
                                 />
                               </div>
                             )}

@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { auth } from "../firebaseConfig"
 
 export default function Login() {
@@ -10,6 +10,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showTerms, setShowTerms] = useState(false)
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,7 +105,10 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-primary-600 to-primary-800 text-white font-semibold hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 rounded-xl text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: '#0284c7' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
             >
               {loading ? 'Iniciando...' : 'Iniciar Sesión'}
             </button>
@@ -128,10 +132,110 @@ export default function Login() {
             transition={{ delay: 0.4 }}
             className="text-center text-slate-400 text-sm mt-6"
           >
-            Al continuar, aceptas nuestros términos y condiciones
+            Al continuar, aceptas nuestros{' '}
+            <button
+              type="button"
+              onClick={() => setShowTerms(true)}
+              className="text-primary-400 hover:text-primary-300 underline transition-colors"
+            >
+              términos y condiciones
+            </button>
           </motion.p>
         </div>
       </motion.div>
+
+      {/* Modal de Términos y Condiciones */}
+      <AnimatePresence>
+        {showTerms && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowTerms(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Términos y Condiciones</h2>
+                <button
+                  onClick={() => setShowTerms(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 overflow-y-auto flex-1">
+                <div className="text-slate-300 space-y-4">
+                  <section>
+                    <h3 className="text-xl font-semibold text-white mb-2">1. Aceptación de los Términos</h3>
+                    <p>
+                      Al acceder y utilizar esta plataforma de entrenamiento personalizado, usted acepta cumplir con estos términos y condiciones. Si no está de acuerdo con alguna parte de estos términos, no debe utilizar el servicio.
+                    </p>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xl font-semibold text-white mb-2">2. Uso del Servicio</h3>
+                    <p>
+                      El servicio está destinado únicamente para uso personal. Usted se compromete a:
+                    </p>
+                    <ul className="list-disc list-inside ml-4 mt-2 space-y-1">
+                      <li>Proporcionar información precisa y actualizada</li>
+                      <li>Mantener la confidencialidad de su cuenta y contraseña</li>
+                      <li>No compartir su cuenta con terceros</li>
+                      <li>Usar el servicio de manera responsable y conforme a la ley</li>
+                    </ul>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xl font-semibold text-white mb-2">3. Responsabilidad de la Salud</h3>
+                    <p>
+                      Los programas de entrenamiento proporcionados son sugerencias generales. Antes de comenzar cualquier programa de ejercicio, consulte con un profesional de la salud. No nos hacemos responsables de lesiones o problemas de salud que puedan resultar del uso de este servicio.
+                    </p>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xl font-semibold text-white mb-2">4. Privacidad</h3>
+                    <p>
+                      Respetamos su privacidad y protegemos sus datos personales de acuerdo con nuestra política de privacidad. Sus datos se utilizan únicamente para proporcionar y mejorar el servicio.
+                    </p>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xl font-semibold text-white mb-2">5. Modificaciones</h3>
+                    <p>
+                      Nos reservamos el derecho de modificar estos términos en cualquier momento. Los cambios entrarán en vigor inmediatamente después de su publicación en la plataforma.
+                    </p>
+                  </section>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-slate-700 flex justify-end">
+                <button
+                  onClick={() => setShowTerms(false)}
+                  className="px-6 py-2 rounded-lg font-semibold transition-colors text-white"
+                  style={{ backgroundColor: '#0284c7' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0369a1'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0284c7'}
+                >
+                  Cerrar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

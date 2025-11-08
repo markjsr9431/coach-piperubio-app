@@ -172,7 +172,14 @@ const ClientProfilePage = () => {
       // Crear preview
       const previewUrl = URL.createObjectURL(resizedBlob)
       setPhotoPreview(previewUrl)
-      setPhotoFile(new File([resizedBlob], file.name, { type: 'image/jpeg' }))
+      
+      // Crear File desde Blob con nombre y tipo correctos
+      const fileName = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
+      const photoFile = new File([resizedBlob], fileName, { 
+        type: 'image/jpeg',
+        lastModified: Date.now()
+      })
+      setPhotoFile(photoFile)
     } catch (error: any) {
       console.error('Error processing image:', error)
       setError(error.message || 'Error al procesar la imagen')
@@ -196,21 +203,34 @@ const ClientProfilePage = () => {
 
       // Subir foto si hay una nueva
       if (photoFile) {
-        // Eliminar foto anterior si existe (usar la ruta del storage, no la URL completa)
-        if (formData.profilePhoto && formData.profilePhoto.includes(`clients/${clientId}/profile`)) {
-          try {
-            const oldPhotoRef = ref(storage, `clients/${clientId}/profile.jpg`)
-            await deleteObject(oldPhotoRef)
-          } catch (error) {
-            console.warn('Error deleting old photo:', error)
-            // Continuar aunque falle la eliminación
+        try {
+          // Eliminar foto anterior si existe (usar la ruta del storage, no la URL completa)
+          if (formData.profilePhoto && formData.profilePhoto.includes(`clients/${clientId}/profile`)) {
+            try {
+              const oldPhotoRef = ref(storage, `clients/${clientId}/profile.jpg`)
+              await deleteObject(oldPhotoRef)
+            } catch (deleteError) {
+              console.warn('Error deleting old photo:', deleteError)
+              // Continuar aunque falle la eliminación
+            }
           }
-        }
 
-        // Subir nueva foto
-        const photoRef = ref(storage, `clients/${clientId}/profile.jpg`)
-        await uploadBytes(photoRef, photoFile)
-        photoUrl = await getDownloadURL(photoRef)
+          // Subir nueva foto
+          const photoRef = ref(storage, `clients/${clientId}/profile.jpg`)
+          
+          // Asegurarse de que photoFile es un Blob o File válido
+          if (!photoFile || !(photoFile instanceof File || photoFile instanceof Blob)) {
+            throw new Error('El archivo de foto no es válido')
+          }
+          
+          await uploadBytes(photoRef, photoFile)
+          photoUrl = await getDownloadURL(photoRef)
+          
+          console.log('Foto subida exitosamente:', photoUrl)
+        } catch (uploadError: any) {
+          console.error('Error uploading photo:', uploadError)
+          throw new Error(`Error al subir la foto: ${uploadError.message || 'Error desconocido'}`)
+        }
       }
 
       // Actualizar datos en Firestore

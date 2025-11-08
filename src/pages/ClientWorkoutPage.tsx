@@ -493,7 +493,7 @@ const ClientWorkoutPage = () => {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 100, scale: 0.8 }}
               transition={{ duration: 0.4, ease: "easeOut", delay: 0.6 }}
-              className="fixed bottom-6 right-6 z-50 max-w-sm w-full sm:w-96"
+              className="fixed bottom-4 left-4 right-4 sm:bottom-6 sm:right-6 sm:left-auto z-50 max-w-sm sm:w-full"
             >
               <div className="bg-red-600/60 backdrop-blur-md text-white rounded-xl shadow-2xl border-2 border-red-500/30 p-4 relative overflow-hidden">
                 
@@ -527,9 +527,9 @@ const ClientWorkoutPage = () => {
                     </svg>
                   </div>
                   {/* Texto optimizado */}
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold leading-relaxed">
-                      {t('alert.title')} {t('alert.text1')}. {t('alert.text2')} {t('alert.text3')}.
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold leading-relaxed break-words">
+                      {t('alert.title')} {t('alert.text1')}
                     </p>
                   </div>
                 </div>

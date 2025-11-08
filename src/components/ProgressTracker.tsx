@@ -6,6 +6,8 @@ interface ProgressTrackerProps {
   completedDays: number
   totalDays: number
   showDetails?: boolean
+  createdAt?: any // Timestamp de creación del cliente
+  lastLogin?: any // Timestamp del último login
 }
 
 const ProgressTracker = ({
@@ -13,9 +15,29 @@ const ProgressTracker = ({
   monthlyProgress,
   completedDays,
   totalDays,
-  showDetails = false
+  showDetails = false,
+  createdAt,
+  lastLogin
 }: ProgressTrackerProps) => {
   const { theme } = useTheme()
+
+  // Determinar si el usuario es nuevo (creado hace menos de 7 días) o no ha iniciado sesión en 7 días
+  const isNewUser = () => {
+    if (!createdAt) return false
+    const createdDate = createdAt.toDate ? createdAt.toDate() : new Date(createdAt)
+    const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
+    return daysSinceCreation < 7
+  }
+
+  const hasNotLoggedInRecently = () => {
+    if (!lastLogin) return true // Si no hay registro de login, considerar que no ha iniciado sesión
+    const lastLoginDate = lastLogin.toDate ? lastLogin.toDate() : new Date(lastLogin)
+    const daysSinceLastLogin = (Date.now() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24)
+    return daysSinceLastLogin >= 7
+  }
+
+  // Solo mostrar "Necesita más compromiso" si no es usuario nuevo Y no ha iniciado sesión recientemente
+  const shouldShowLowCommitment = !isNewUser() && hasNotLoggedInRecently()
 
   return (
     <div className={`rounded-lg p-4 ${
@@ -120,7 +142,7 @@ const ProgressTracker = ({
                   Buen progreso, sigue así
                 </span>
               </>
-            ) : (
+            ) : shouldShowLowCommitment ? (
               <>
                 <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -131,7 +153,7 @@ const ProgressTracker = ({
                   Necesita más compromiso
                 </span>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       )}
