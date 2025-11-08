@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useTimer } from '../contexts/TimerContext'
-import { workouts } from '../data/workouts'
+import { workouts, Workout } from '../data/workouts'
+import { db } from '../firebaseConfig'
+import { doc, getDoc } from 'firebase/firestore'
 import ExerciseItem from '../components/ExerciseItem'
 import VideoModal from '../components/VideoModal'
 import TimerModal from '../components/TimerModal'
@@ -13,7 +15,7 @@ import ProgressBar from '../components/ProgressBar'
 import TopBanner from '../components/TopBanner'
 
 const WorkoutPage = () => {
-  const { day } = useParams<{ day: string }>()
+  const { day, clientId } = useParams<{ day: string; clientId?: string }>()
   const navigate = useNavigate()
   const { theme } = useTheme()
   const {
@@ -27,7 +29,8 @@ const WorkoutPage = () => {
     resetTimer,
   } = useTimer()
   const dayIndex = day ? parseInt(day) - 1 : 0
-  const workout = workouts[dayIndex]
+  const [workout, setWorkout] = useState<Workout | null>(workouts[dayIndex] || null)
+  const [loadingWorkout, setLoadingWorkout] = useState(!!clientId)
   
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set())
@@ -41,15 +44,46 @@ const WorkoutPage = () => {
   const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
   const isWorkoutComplete = totalExercises > 0 && completedExercises.size === totalExercises
 
+  // Cargar entrenamiento personalizado si hay clientId
+  useEffect(() => {
+    const loadWorkout = async () => {
+      if (clientId) {
+        setLoadingWorkout(true)
+        try {
+          const workoutRef = doc(db, 'clients', clientId, 'workouts', `day-${dayIndex + 1}`)
+          const workoutDoc = await getDoc(workoutRef)
+          
+          if (workoutDoc.exists()) {
+            const data = workoutDoc.data()
+            setWorkout(data as Workout)
+          } else {
+            // Si no hay entrenamiento personalizado, usar el predeterminado
+            setWorkout(workouts[dayIndex] || null)
+          }
+        } catch (error) {
+          console.error('Error loading workout:', error)
+          setWorkout(workouts[dayIndex] || null)
+        } finally {
+          setLoadingWorkout(false)
+        }
+      } else {
+        setWorkout(workouts[dayIndex] || null)
+        setLoadingWorkout(false)
+      }
+    }
+
+    loadWorkout()
+  }, [clientId, dayIndex])
+
   useEffect(() => {
     // Expand first section by default
-    if (workout?.sections.length > 0) {
+    if (workout && workout.sections && workout.sections.length > 0) {
       setExpandedSections(new Set([workout.sections[0].name]))
     }
     // Reset completion state when day changes
     setShowComplete(false)
     setLastCompletedCount(0)
-  }, [day])
+  }, [day, workout])
 
   // Detectar cuando se completa el entrenamiento
   useEffect(() => {
@@ -101,28 +135,22 @@ const WorkoutPage = () => {
 
   const handlePreviousDay = () => {
     if (dayIndex > 0) {
-      navigate(`/workout/${dayIndex}`)
+      if (clientId) {
+        navigate(`/client/${clientId}/workout/${dayIndex}`)
+      } else {
+        navigate(`/workout/${dayIndex}`)
+      }
     }
   }
 
   const handleNextDay = () => {
     if (dayIndex < workouts.length - 1) {
-      navigate(`/workout/${dayIndex + 2}`)
+      if (clientId) {
+        navigate(`/client/${clientId}/workout/${dayIndex + 2}`)
+      } else {
+        navigate(`/workout/${dayIndex + 2}`)
+      }
     }
-  }
-
-  if (!workout) {
-    return (
-      <div className={`min-h-screen bg-gradient-to-br ${
-        theme === 'dark' 
-          ? 'from-slate-900 via-slate-800 to-slate-900' 
-          : 'from-gray-50 via-gray-100 to-gray-200'
-      } flex items-center justify-center`}>
-        <div className={`text-xl ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>Día no encontrado</div>
-      </div>
-    )
   }
 
   return (
@@ -138,6 +166,21 @@ const WorkoutPage = () => {
       <div className="h-28 sm:h-32"></div>
       
       <div className="max-w-4xl mx-auto pt-6 pb-8 px-4 sm:px-6 lg:px-8">
+        {loadingWorkout ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <p className={`mt-4 ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+              Cargando entrenamiento...
+            </p>
+          </div>
+        ) : !workout ? (
+          <div className="text-center py-12">
+            <p className={`text-xl ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+              Entrenamiento no encontrado
+            </p>
+          </div>
+        ) : (
+          <>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -257,6 +300,8 @@ const WorkoutPage = () => {
             Día Siguiente →
           </button>
         </div>
+          </>
+        )}
       </div>
 
       {/* Video Modal */}

@@ -2,8 +2,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Función helper para verificar si es admin
+    // Nota: Firebase Auth normaliza los emails a minúsculas en el token
     function isAdmin() {
-      return request.auth != null && (
+      return request.auth != null && request.auth.token.email != null && (
         request.auth.token.email == 'piperubiocoach@gmail.com' ||
         request.auth.token.email == 'sebassennin@gmail.com'
       );
@@ -32,6 +33,15 @@ service cloud.firestore {
       
       // Permitir eliminación solo a admins
       allow delete: if isAdmin();
+    }
+    
+    // Regla para entrenamientos de clientes
+    match /clients/{clientId}/workouts/{workoutId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir escritura solo a admins
+      allow write: if isAdmin();
     }
     
     // Regla para la colección de usuarios (si existe)

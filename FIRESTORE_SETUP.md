@@ -6,19 +6,26 @@ Este documento explica cómo configurar Firestore para que los clientes se creen
 
 ### 1. Desplegar las Reglas de Seguridad
 
+**IMPORTANTE**: Las reglas de seguridad deben estar desplegadas para que el sistema funcione correctamente. Si ves el error "Missing or insufficient permissions" al guardar entrenamientos, significa que las reglas no están desplegadas.
+
 Las reglas de seguridad ya están configuradas en el archivo `firestore.rules`. Para desplegarlas:
 
+**Opción 1: Usando Firebase CLI (Recomendado)**
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-O si prefieres usar la consola de Firebase:
-
+**Opción 2: Usando la consola de Firebase**
 1. Ve a [Firebase Console](https://console.firebase.google.com/)
 2. Selecciona tu proyecto: `coachpiperubio-db723`
 3. Ve a **Firestore Database** → **Reglas**
 4. Copia y pega el contenido del archivo `firestore.rules`
 5. Haz clic en **Publicar**
+
+**Verificar que las reglas estén desplegadas:**
+- Después de desplegar, espera unos segundos
+- Recarga la página de la aplicación
+- Intenta guardar un entrenamiento nuevamente
 
 ### 2. Verificar la Estructura de la Base de Datos
 
