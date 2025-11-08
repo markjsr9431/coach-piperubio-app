@@ -95,11 +95,13 @@ export default function Login() {
             {showEmailLogin ? (
               <motion.form
                 key="email-form"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
                 onSubmit={handleEmailLogin}
                 className="space-y-4"
+                style={{ display: 'block' }}
               >
                 <div>
                   <input
@@ -186,8 +188,10 @@ export default function Login() {
                   )}
                 </motion.button>
                 <button
+                  type="button"
                   onClick={() => setShowEmailLogin(true)}
-                  className="w-full text-slate-300 hover:text-white text-sm font-medium transition-colors"
+                  className="w-full text-slate-300 hover:text-white text-sm font-medium transition-colors py-2"
+                  aria-label="Iniciar sesión con email y contraseña"
                 >
                   O inicia sesión con email y contraseña
                 </button>
