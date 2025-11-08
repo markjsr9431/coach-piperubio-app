@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Función helper para verificar si es admin
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'piperubiocoach@gmail.com' ||
+        request.auth.token.email == 'sebassennin@gmail.com'
+      );
+    }
+    
+    // Regla para la colección de clientes
+    match /clients/{clientId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir creación:
+      // - Si es admin (puede crear cualquier cliente)
+      // - O si el cliente está creando su propio documento (UID coincide)
+      allow create: if request.auth != null && (
+        isAdmin() || 
+        request.auth.uid == clientId
+      );
+      
+      // Permitir actualización:
+      // - Si es admin (puede actualizar cualquier cliente)
+      // - O si el cliente está actualizando su propio documento
+      allow update: if request.auth != null && (
+        isAdmin() || 
+        request.auth.uid == clientId
+      );
+      
+      // Permitir eliminación solo a admins
+      allow delete: if isAdmin();
+    }
+    
+    // Regla para la colección de usuarios (si existe)
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Regla por defecto: denegar todo lo demás
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

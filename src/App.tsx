@@ -6,6 +6,7 @@ import { TimerProvider } from './contexts/TimerContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import HomePage from './pages/HomePage'
 import WorkoutPage from './pages/WorkoutPage'
+import ClientWorkoutPage from './pages/ClientWorkoutPage'
 import LoginPage from './pages/Login'
 
 // Componente para proteger rutas que requieren autenticación
@@ -39,6 +40,23 @@ function AppRoutes() {
           </ProtectedRoute>
         } 
       />
+      <Route 
+        path="/client/:clientId/workouts" 
+        element={
+          <ProtectedRoute>
+            <ClientWorkoutPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/client/:clientId/workout/:day" 
+        element={
+          <ProtectedRoute>
+            <WorkoutPage />
+          </ProtectedRoute>
+        } 
+      />
+      {/* Ruta legacy para compatibilidad */}
       <Route 
         path="/workout/:day" 
         element={

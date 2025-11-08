@@ -144,19 +144,8 @@ const WorkoutPage = () => {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          {/* Botón de volver al inicio - Solo visible en desktop, en móvil está en el banner */}
-          <div className="hidden sm:flex items-center justify-between mb-4">
-            <button
-              onClick={() => navigate('/')}
-              className={`${
-                theme === 'dark' ? 'text-white hover:text-primary-400' : 'text-gray-900 hover:text-primary-600'
-              } transition-colors flex items-center gap-2`}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Volver al inicio
-            </button>
+          {/* Botón de cronómetro - Solo visible en desktop, en móvil está en el banner */}
+          <div className="hidden sm:flex items-center justify-end mb-4">
             <button
               onClick={() => setShowTimer(true)}
               className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
