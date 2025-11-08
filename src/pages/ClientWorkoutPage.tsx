@@ -6,7 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 
@@ -21,6 +21,9 @@ const ClientWorkoutPage = () => {
   const [clientWorkouts, setClientWorkouts] = useState<Workout[]>(workouts)
   const [editingDayIndex, setEditingDayIndex] = useState<number | null>(null)
   const [loadingWorkouts, setLoadingWorkouts] = useState(true)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   // Cargar entrenamientos personalizados del cliente
   useEffect(() => {
@@ -105,6 +108,46 @@ const ClientWorkoutPage = () => {
     loadWorkouts()
   }
 
+  const toggleDaySelection = (dayIndex: number) => {
+    setSelectedDays(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(dayIndex)) {
+        newSet.delete(dayIndex)
+      } else {
+        newSet.add(dayIndex)
+      }
+      return newSet
+    })
+  }
+
+  const handleDeleteSelectedDays = async () => {
+    if (selectedDays.size === 0 || !clientId) return
+
+    if (!confirm(`¿Estás seguro de que quieres eliminar ${selectedDays.size} día(s) de entrenamiento?`)) {
+      return
+    }
+
+    setDeleting(true)
+    try {
+      const deletePromises = Array.from(selectedDays).map(async (dayIndex) => {
+        const workoutRef = doc(db, 'clients', clientId, 'workouts', `day-${dayIndex + 1}`)
+        await deleteDoc(workoutRef)
+      })
+
+      await Promise.all(deletePromises)
+      
+      // Recargar entrenamientos
+      handleWorkoutSaved()
+      setSelectedDays(new Set())
+      setSelectionMode(false)
+    } catch (error) {
+      console.error('Error deleting workouts:', error)
+      alert('Error al eliminar los entrenamientos')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -153,6 +196,45 @@ const ClientWorkoutPage = () => {
             <p className={`text-xl ${
               theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
             }`}>{t('workout.interactive')}</p>
+            
+            {/* Botones de gestión - Solo para coach */}
+            {isCoach && (
+              <div className="flex justify-center gap-4 mt-6">
+                {!selectionMode ? (
+                  <button
+                    onClick={() => setSelectionMode(true)}
+                    className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Seleccionar Días
+                  </button>
+                ) : (
+                  <div className="flex gap-4">
+                    <button
+                      onClick={() => {
+                        setSelectionMode(false)
+                        setSelectedDays(new Set())
+                      }}
+                      className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleDeleteSelectedDays}
+                      disabled={selectedDays.size === 0 || deleting}
+                      className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      {deleting ? 'Eliminando...' : `Eliminar (${selectedDays.size})`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
         {loadingWorkouts ? (
@@ -169,46 +251,83 @@ const ClientWorkoutPage = () => {
             animate="visible"
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6"
           >
-            {clientWorkouts.map((workout, index) => (
-              <motion.div
-                key={index}
-                variants={cardVariants}
-                whileHover={{ scale: 1.05, y: -5 }}
-                whileTap={{ scale: 0.95 }}
-                className="relative bg-gradient-to-br from-primary-600 to-primary-800 rounded-xl p-6 shadow-lg hover:shadow-2xl transition-shadow"
-              >
-                <div
-                  onClick={() => handleDayClick(index)}
-                  className="cursor-pointer"
+            {clientWorkouts.map((workout, index) => {
+              const isSelected = selectedDays.has(index)
+              return (
+                <motion.div
+                  key={index}
+                  variants={cardVariants}
+                  whileHover={!selectionMode ? { scale: 1.05, y: -5 } : {}}
+                  whileTap={!selectionMode ? { scale: 0.95 } : {}}
+                  className={`relative rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all ${
+                    selectionMode
+                      ? isSelected
+                        ? 'bg-gradient-to-br from-green-600 to-green-800 ring-4 ring-green-400'
+                        : 'bg-gradient-to-br from-primary-600 to-primary-800 opacity-70'
+                      : 'bg-gradient-to-br from-primary-600 to-primary-800'
+                  }`}
                 >
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-white mb-2">
-                      {index + 1}
+                  {selectionMode ? (
+                    <div
+                      onClick={() => toggleDaySelection(index)}
+                      className="cursor-pointer"
+                    >
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-2">
+                          {isSelected && (
+                            <svg className="w-8 h-8 text-white mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          <div className="text-3xl font-bold text-white">
+                            {index + 1}
+                          </div>
+                        </div>
+                        <div className="text-white font-semibold text-lg">
+                          {workout.day.split(' - ')[1]}
+                        </div>
+                        <div className="text-primary-100 text-sm mt-2">
+                          {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-white font-semibold text-lg">
-                      {workout.day.split(' - ')[1]}
-                    </div>
-                    <div className="text-primary-100 text-sm mt-2">
-                      {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
-                    </div>
-                  </div>
-                </div>
-                {isCoach && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleEditWorkout(index)
-                    }}
-                    className="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                    title="Editar entrenamiento"
-                  >
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                )}
-              </motion.div>
-            ))}
+                  ) : (
+                    <>
+                      <div
+                        onClick={() => handleDayClick(index)}
+                        className="cursor-pointer"
+                      >
+                        <div className="text-center">
+                          <div className="text-3xl font-bold text-white mb-2">
+                            {index + 1}
+                          </div>
+                          <div className="text-white font-semibold text-lg">
+                            {workout.day.split(' - ')[1]}
+                          </div>
+                          <div className="text-primary-100 text-sm mt-2">
+                            {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
+                          </div>
+                        </div>
+                      </div>
+                      {isCoach && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditWorkout(index)
+                          }}
+                          className="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                          title="Editar entrenamiento"
+                        >
+                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </motion.div>
+              )
+            })}
           </motion.div>
         )}
         </motion.div>

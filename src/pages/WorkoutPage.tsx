@@ -5,7 +5,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useTimer } from '../contexts/TimerContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import ExerciseItem from '../components/ExerciseItem'
 import VideoModal from '../components/VideoModal'
 import TimerModal from '../components/TimerModal'
@@ -84,6 +84,53 @@ const WorkoutPage = () => {
     setShowComplete(false)
     setLastCompletedCount(0)
   }, [day, workout])
+
+  // Guardar progreso en Firestore cuando cambia
+  useEffect(() => {
+    const saveProgress = async () => {
+      if (!clientId || !workout) return
+
+      try {
+        const progressRef = doc(db, 'clients', clientId, 'progress', `day-${dayIndex + 1}`)
+        const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
+        
+        await setDoc(progressRef, {
+          dayIndex,
+          progress,
+          completedExercises: completedExercises.size,
+          totalExercises,
+          completedAt: progress === 100 ? serverTimestamp() : null,
+          lastUpdated: serverTimestamp()
+        }, { merge: true })
+
+        // Actualizar resumen mensual
+        const summaryRef = doc(db, 'clients', clientId, 'progress', 'summary')
+        const summaryDoc = await getDoc(summaryRef)
+        const currentData = summaryDoc.data() || {}
+        
+        const today = new Date().toISOString().split('T')[0]
+        const dailyProgress = currentData.dailyProgress || {}
+        dailyProgress[today] = progress === 100
+
+        // Calcular días completados
+        const completedDays = Object.values(dailyProgress).filter(Boolean).length
+        
+        await setDoc(summaryRef, {
+          totalDays: workouts.length,
+          completedDays,
+          monthlyProgress: (completedDays / workouts.length) * 100,
+          dailyProgress,
+          lastUpdated: serverTimestamp()
+        }, { merge: true })
+      } catch (error) {
+        console.error('Error saving progress:', error)
+      }
+    }
+
+    // Debounce para no guardar en cada cambio
+    const timeoutId = setTimeout(saveProgress, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [clientId, dayIndex, completedExercises.size, totalExercises, workout])
 
   // Detectar cuando se completa el entrenamiento
   useEffect(() => {

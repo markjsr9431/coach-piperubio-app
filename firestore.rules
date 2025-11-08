@@ -44,6 +44,20 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // Regla para progreso de clientes
+    match /clients/{clientId}/progress/{progressId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir escritura:
+      // - Si es admin (puede ver/editar cualquier progreso)
+      // - O si el cliente está actualizando su propio progreso
+      allow write: if request.auth != null && (
+        isAdmin() || 
+        request.auth.uid == clientId
+      );
+    }
+    
     // Regla para la colección de usuarios (si existe)
     match /users/{userId} {
       allow read: if request.auth != null;

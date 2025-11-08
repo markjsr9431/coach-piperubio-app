@@ -7,8 +7,9 @@ import { useAuth } from '../contexts/AuthContext'
 import TopBanner from '../components/TopBanner'
 import AddClientModal from '../components/AddClientModal'
 import { db } from '../firebaseConfig'
-import { collection, onSnapshot, doc, deleteDoc, getDocs } from 'firebase/firestore'
+import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore'
 import { calculateTimeActive } from '../utils/timeUtils'
+import ProgressTracker from '../components/ProgressTracker'
 
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
 interface Client {
@@ -19,6 +20,11 @@ interface Client {
   status: 'active' | 'inactive'
   lastWorkout?: string
   createdAt?: any
+  progress?: {
+    monthlyProgress: number
+    completedDays: number
+    totalDays: number
+  }
 }
 
 const HomePage = () => {
@@ -64,23 +70,48 @@ const HomePage = () => {
           // Cargar todos los documentos y filtrar manualmente
           // Esto asegura que incluya clientes antiguos sin el campo 'role'
           const snapshot = await getDocs(clientsRef)
-          const clientsData: Client[] = []
-          snapshot.forEach((doc) => {
-            const data = doc.data()
-            if (isClient(data)) {
-              clientsData.push({
-                id: doc.id,
-                name: data.name || '',
-                email: data.email || '',
-                plan: data.plan || 'Plan Mensual - Nivel 2',
-                status: data.status || 'active',
-                lastWorkout: data.lastWorkout || undefined,
-                createdAt: data.createdAt || undefined
-              })
-            }
-          })
-          console.log(`Cargados ${clientsData.length} clientes:`, clientsData.map(c => c.email))
-          setClients(clientsData)
+          
+          // Cargar progreso para cada cliente
+          const clientsWithProgress = await Promise.all(
+            Array.from(snapshot.docs).map(async (docSnapshot) => {
+              const data = docSnapshot.data()
+              if (isClient(data)) {
+                // Cargar progreso
+                let progress = undefined
+                try {
+                  const progressRef = doc(db, 'clients', docSnapshot.id, 'progress', 'summary')
+                  const progressDoc = await getDoc(progressRef)
+                  if (progressDoc.exists()) {
+                    const progressData = progressDoc.data()
+                    progress = {
+                      monthlyProgress: progressData.monthlyProgress || 0,
+                      completedDays: progressData.completedDays || 0,
+                      totalDays: progressData.totalDays || 30
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Error loading progress for ${docSnapshot.id}:`, error)
+                }
+
+                const client: Client = {
+                  id: docSnapshot.id,
+                  name: data.name || '',
+                  email: data.email || '',
+                  plan: data.plan || 'Plan Mensual - Nivel 2',
+                  status: data.status || 'active',
+                  lastWorkout: data.lastWorkout || undefined,
+                  createdAt: data.createdAt || undefined,
+                  progress
+                }
+                return client
+              }
+              return null
+            })
+          )
+
+          const validClients = clientsWithProgress.filter((c): c is Client => c !== null)
+          console.log(`Cargados ${validClients.length} clientes:`, validClients.map(c => c.email))
+          setClients(validClients)
           setLoading(false)
         } catch (error) {
           console.error('Error loading clients:', error)
@@ -93,23 +124,48 @@ const HomePage = () => {
 
       // Luego suscribirse para actualizaciones en tiempo real
       const clientsRef = collection(db, 'clients')
-      const unsubscribe = onSnapshot(clientsRef, (snapshot) => {
-        const clientsData: Client[] = []
-        snapshot.forEach((doc) => {
-          const data = doc.data()
-          if (isClient(data)) {
-            clientsData.push({
-              id: doc.id,
-              name: data.name || '',
-              email: data.email || '',
-              plan: data.plan || 'Plan Mensual - Nivel 2',
-              status: data.status || 'active',
-              lastWorkout: data.lastWorkout || undefined
-            })
-          }
-        })
-        console.log(`Actualización en tiempo real: ${clientsData.length} clientes:`, clientsData.map(c => c.email))
-        setClients(clientsData)
+      const unsubscribe = onSnapshot(clientsRef, async (snapshot) => {
+        // Cargar progreso para cada cliente
+        const clientsWithProgress = await Promise.all(
+          Array.from(snapshot.docs).map(async (docSnapshot) => {
+            const data = docSnapshot.data()
+            if (isClient(data)) {
+              // Cargar progreso
+              let progress = undefined
+              try {
+                const progressRef = doc(db, 'clients', docSnapshot.id, 'progress', 'summary')
+                const progressDoc = await getDoc(progressRef)
+                if (progressDoc.exists()) {
+                  const progressData = progressDoc.data()
+                  progress = {
+                    monthlyProgress: progressData.monthlyProgress || 0,
+                    completedDays: progressData.completedDays || 0,
+                    totalDays: progressData.totalDays || 30
+                  }
+                }
+              } catch (error) {
+                console.error(`Error loading progress for ${docSnapshot.id}:`, error)
+              }
+
+              const client: Client = {
+                id: docSnapshot.id,
+                name: data.name || '',
+                email: data.email || '',
+                plan: data.plan || 'Plan Mensual - Nivel 2',
+                status: data.status || 'active',
+                lastWorkout: data.lastWorkout || undefined,
+                createdAt: data.createdAt || undefined,
+                progress
+              }
+              return client
+            }
+            return null
+          })
+        )
+
+        const validClients = clientsWithProgress.filter((c): c is Client => c !== null)
+        console.log(`Actualización en tiempo real: ${validClients.length} clientes:`, validClients.map(c => c.email))
+        setClients(validClients)
       }, (error) => {
         console.error('Error in real-time subscription:', error)
       })
@@ -354,6 +410,19 @@ const HomePage = () => {
                       </svg>
                     </button>
 
+                    {/* Barra de Progreso */}
+                    {client.progress && (
+                      <div className="mb-4" onClick={(e) => e.stopPropagation()}>
+                        <ProgressTracker
+                          dailyProgress={0}
+                          monthlyProgress={client.progress.monthlyProgress}
+                          completedDays={client.progress.completedDays}
+                          totalDays={client.progress.totalDays}
+                          showDetails={false}
+                        />
+                      </div>
+                    )}
+                    
                     <div 
                       onClick={() => handleClientClick(client.id)}
                       className="cursor-pointer"
