@@ -13,10 +13,6 @@ body {
   min-height: 100vh;
 }
 
-* {
-  font-family: inherit;
-}
-
 #root {
   min-height: 100vh;
 }
