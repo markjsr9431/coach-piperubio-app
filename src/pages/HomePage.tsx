@@ -11,21 +11,6 @@ import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc } from 'firebas
 import { calculateTimeActive } from '../utils/timeUtils'
 import ProgressTracker from '../components/ProgressTracker'
 
-// Función para formatear tiempo de entrenamiento
-const formatWorkoutTime = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  } else if (minutes > 0) {
-    return `${minutes}m ${secs}s`
-  } else {
-    return `${secs}s`
-  }
-}
-
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
 interface Client {
   id: string

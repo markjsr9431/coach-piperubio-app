@@ -2,7 +2,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
-import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db, storage, auth } from '../firebaseConfig'
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
@@ -14,14 +13,12 @@ const ClientProfilePage = () => {
   const navigate = useNavigate()
   const { clientId } = useParams<{ clientId: string }>()
   const { theme } = useTheme()
-  const { t } = useLanguage()
   const { user } = useAuth()
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [clientData, setClientData] = useState<any>(null)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -49,7 +46,6 @@ const ClientProfilePage = () => {
         
         if (clientDoc.exists()) {
           const data = clientDoc.data()
-          setClientData(data)
           setFormData({
             name: data.name || '',
             email: data.email || '',

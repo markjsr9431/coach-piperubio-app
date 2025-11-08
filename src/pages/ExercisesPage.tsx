@@ -18,7 +18,6 @@ const ExercisesPage = () => {
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<ExerciseData | null>(null)
   const [exercises, setExercises] = useState<ExerciseData[]>([])
-  const [loading, setLoading] = useState(true)
 
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
 
@@ -58,8 +57,6 @@ const ExercisesPage = () => {
         console.error('Error loading exercises:', error)
         // Si falla, usar solo ejercicios estáticos
         setExercises(searchExercises('', undefined))
-      } finally {
-        setLoading(false)
       }
     }
 

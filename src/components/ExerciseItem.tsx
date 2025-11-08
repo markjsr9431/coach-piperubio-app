@@ -9,11 +9,10 @@ interface ExerciseItemProps {
   }
   isCompleted: boolean
   onToggle: () => void
-  onWatchVideo: () => void
   disabled?: boolean
 }
 
-const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo, disabled = false }: ExerciseItemProps) => {
+const ExerciseItem = ({ exercise, isCompleted, onToggle, disabled = false }: ExerciseItemProps) => {
   const { theme } = useTheme()
 
   return (

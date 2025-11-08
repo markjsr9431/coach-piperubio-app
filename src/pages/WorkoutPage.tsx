@@ -88,7 +88,7 @@ const WorkoutPage = () => {
             if (savedProgress === 100 && loadedWorkout) {
               // Reconstruir el set de ejercicios completados basado en el progreso guardado
               const completedSet = new Set<string>()
-              loadedWorkout.sections.forEach((section, sectionIndex) => {
+              loadedWorkout.sections.forEach((section) => {
                 section.exercises.forEach((exercise, exerciseIndex) => {
                   const exerciseKey = `${section.name}-${exercise.name}-${exerciseIndex}`
                   // Si el progreso es 100%, todos los ejercicios están completados
@@ -448,7 +448,6 @@ const WorkoutPage = () => {
                             exercise={exercise}
                             isCompleted={isCompleted}
                             onToggle={() => toggleExercise(exerciseKey)}
-                            onWatchVideo={() => setSelectedVideo(exercise.video)}
                             disabled={isDisabled}
                           />
                         )

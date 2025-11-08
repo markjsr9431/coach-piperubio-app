@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
-import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
@@ -15,7 +14,6 @@ interface AddExerciseModalProps {
 
 const AddExerciseModal = ({ isOpen, onClose, onSuccess }: AddExerciseModalProps) => {
   const { theme } = useTheme()
-  const { t } = useLanguage()
   const { user } = useAuth()
   const [formData, setFormData] = useState({
     name: '',

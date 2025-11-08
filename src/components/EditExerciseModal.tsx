@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
-import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
 import { doc, updateDoc, serverTimestamp, deleteField, collection, getDocs, addDoc } from 'firebase/firestore'
@@ -16,7 +15,6 @@ interface EditExerciseModalProps {
 
 const EditExerciseModal = ({ isOpen, onClose, onSuccess, exercise }: EditExerciseModalProps) => {
   const { theme } = useTheme()
-  const { t } = useLanguage()
   const { user } = useAuth()
   const [formData, setFormData] = useState({
     name: '',
