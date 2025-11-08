@@ -5,7 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { updateProfile, updateEmail, sendEmailVerification } from 'firebase/auth'
 import { db } from '../firebaseConfig'
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, updateDoc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 
 interface UpdateProfileModalProps {
   isOpen: boolean
@@ -103,6 +103,28 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         })
+      }
+
+      // Si el usuario es un cliente, también actualizar en la colección 'clients'
+      if (user.email) {
+        try {
+          const clientsRef = collection(db, 'clients')
+          const q = query(clientsRef, where('email', '==', user.email.toLowerCase()))
+          const snapshot = await getDocs(q)
+          
+          if (!snapshot.empty) {
+            // Actualizar el documento del cliente
+            const clientDoc = snapshot.docs[0]
+            await updateDoc(doc(db, 'clients', clientDoc.id), {
+              name: formData.displayName,
+              email: formData.email.toLowerCase(),
+              updatedAt: new Date().toISOString()
+            })
+          }
+        } catch (error) {
+          console.error('Error updating client name:', error)
+          // No fallar si no se puede actualizar el cliente
+        }
       }
 
       setSuccess(true)

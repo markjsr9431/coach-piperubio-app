@@ -5,8 +5,9 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import UpdateProfileModal from './UpdateProfileModal'
+import ColorThemeSelector from './ColorThemeSelector'
 import { db } from '../firebaseConfig'
-import { doc, onSnapshot } from 'firebase/firestore'
+import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore'
 
 const TopBanner = () => {
   const navigate = useNavigate()
@@ -18,6 +19,7 @@ const TopBanner = () => {
   const [isScrolled, setIsScrolled] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [showColorSelector, setShowColorSelector] = useState(false)
   const [clientName, setClientName] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const isHomePage = location.pathname === '/' || location.pathname === '/login'
@@ -48,6 +50,57 @@ const TopBanner = () => {
     }
   }, [isViewingClient, params.clientId])
 
+  // Cargar nombre del cliente desde Firestore si es cliente
+  const [clientDisplayName, setClientDisplayName] = useState<string | null>(null)
+  
+  useEffect(() => {
+    if (!user || isCoach) {
+      setClientDisplayName(null)
+      return
+    }
+
+    // Buscar el cliente por email en Firestore
+    const loadClientName = async () => {
+      try {
+        const clientsRef = collection(db, 'clients')
+        const q = query(clientsRef, where('email', '==', user.email?.toLowerCase()))
+        const snapshot = await getDocs(q)
+        
+        if (!snapshot.empty) {
+          const clientData = snapshot.docs[0].data()
+          setClientDisplayName(clientData.name || null)
+        }
+      } catch (error) {
+        console.error('Error loading client name:', error)
+      }
+    }
+
+    loadClientName()
+
+    // Suscribirse a cambios en tiempo real
+    let unsubscribe: (() => void) | null = null
+    try {
+      const clientsRef = collection(db, 'clients')
+      const q = query(clientsRef, where('email', '==', user.email?.toLowerCase()))
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          const clientData = snapshot.docs[0].data()
+          setClientDisplayName(clientData.name || null)
+        }
+      }, (error) => {
+        console.error('Error subscribing to client name:', error)
+      })
+    } catch (error) {
+      console.error('Error setting up subscription:', error)
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
+  }, [user, isCoach])
+
   // Obtener nombre para mostrar
   const getDisplayName = () => {
     // Si estamos viendo un cliente específico, mostrar su nombre
@@ -60,6 +113,11 @@ const TopBanner = () => {
     // Si es el admin piperubiocoach@gmail.com, mostrar "COACH PIPERUBIO"
     if (user.email?.toLowerCase() === 'piperubiocoach@gmail.com') {
       return 'COACH PIPERUBIO'
+    }
+    
+    // Si es cliente, usar el nombre de Firestore, luego displayName, luego email
+    if (clientDisplayName) {
+      return clientDisplayName
     }
     
     return user.displayName || user.email || 'Usuario'
@@ -136,10 +194,10 @@ const TopBanner = () => {
         {/* Botón de back - Solo visible cuando no estamos en HomePage */}
         {!isHomePage && (
           <button
-            onClick={() => navigate('/home')}
+            onClick={() => navigate(-1)}
             className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors mr-2 sm:mr-0"
-            aria-label="Volver al inicio"
-            title="Volver al inicio"
+            aria-label="Volver a la página anterior"
+            title="Volver a la página anterior"
           >
             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -306,6 +364,22 @@ const TopBanner = () => {
                           {t('userMenu.updateProfile')}
                         </button>
                         <button
+                          onClick={() => {
+                            setShowUserMenu(false)
+                            setShowColorSelector(true)
+                          }}
+                          className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                            theme === 'dark'
+                              ? 'hover:bg-slate-700 text-slate-300'
+                              : 'hover:bg-gray-100 text-gray-700'
+                          } flex items-center gap-3`}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                          </svg>
+                          Personalizar Tema
+                        </button>
+                        <button
                           onClick={handleLogout}
                           className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
                             theme === 'dark'
@@ -334,6 +408,12 @@ const TopBanner = () => {
               // Recargar la página para actualizar los datos del usuario
               window.location.reload()
             }}
+          />
+
+          {/* Selector de colores - Para todos los usuarios */}
+          <ColorThemeSelector
+            isOpen={showColorSelector}
+            onClose={() => setShowColorSelector(false)}
           />
 
           <motion.div

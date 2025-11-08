@@ -115,9 +115,15 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
       
       setLoading(false)
       setStep('success')
+      // Guardar el clientId para navegación
+      const createdClientId = userCredential.user.uid
       setTimeout(() => {
         onSuccess()
         handleClose()
+        // Navegar al perfil del cliente recién creado
+        if (createdClientId) {
+          window.location.href = `/client/${createdClientId}/profile`
+        }
       }, 2000)
     } catch (error: any) {
       console.error('Error al agregar cliente:', error)

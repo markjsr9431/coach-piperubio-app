@@ -10,9 +10,10 @@ interface ExerciseItemProps {
   isCompleted: boolean
   onToggle: () => void
   onWatchVideo: () => void
+  disabled?: boolean
 }
 
-const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo }: ExerciseItemProps) => {
+const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo, disabled = false }: ExerciseItemProps) => {
   const { theme } = useTheme()
 
   return (
@@ -25,7 +26,7 @@ const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo }: Exercis
         isCompleted 
           ? 'border-green-500 bg-green-500/10' 
           : theme === 'dark' ? 'border-slate-600' : 'border-gray-300'
-      }`}
+      } ${disabled ? 'opacity-75' : ''}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
@@ -33,7 +34,12 @@ const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo }: Exercis
             {/* Casilla de selección - Tamaño y forma fijos */}
             <button
               onClick={onToggle}
+              disabled={disabled}
               className={`flex-shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
+                disabled
+                  ? 'cursor-not-allowed opacity-50'
+                  : 'cursor-pointer'
+              } ${
                 isCompleted
                   ? 'bg-green-500 border-green-500'
                   : theme === 'dark' 
@@ -67,15 +73,6 @@ const ExerciseItem = ({ exercise, isCompleted, onToggle, onWatchVideo }: Exercis
             {exercise.sets}
           </p>
         </div>
-        <button
-          onClick={onWatchVideo}
-          className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 whitespace-nowrap"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-          </svg>
-          Ver Video
-        </button>
       </div>
     </motion.div>
   )

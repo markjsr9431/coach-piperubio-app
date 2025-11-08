@@ -35,6 +35,8 @@ interface Client {
   status: 'active' | 'inactive'
   lastWorkout?: string
   createdAt?: any
+  subscriptionStartDate?: any
+  subscriptionEndDate?: any
   progress?: {
     monthlyProgress: number
     completedDays: number
@@ -52,6 +54,7 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -110,16 +113,18 @@ const HomePage = () => {
                   console.error(`Error loading progress for ${docSnapshot.id}:`, error)
                 }
 
-                const client: Client = {
-                  id: docSnapshot.id,
-                  name: data.name || '',
-                  email: data.email || '',
-                  plan: data.plan || 'Plan Mensual - Nivel 2',
-                  status: data.status || 'active',
-                  lastWorkout: data.lastWorkout || undefined,
-                  createdAt: data.createdAt || undefined,
-                  progress
-                }
+              const client: Client = {
+                id: docSnapshot.id,
+                name: data.name || '',
+                email: data.email || '',
+                plan: data.plan || 'Plan Mensual - Nivel 2',
+                status: data.status || 'active',
+                lastWorkout: data.lastWorkout || undefined,
+                createdAt: data.createdAt || undefined,
+                subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
+                subscriptionEndDate: data.subscriptionEndDate || undefined,
+                progress
+              }
                 return client
               }
               return null
@@ -173,6 +178,8 @@ const HomePage = () => {
                 status: data.status || 'active',
                 lastWorkout: data.lastWorkout || undefined,
                 createdAt: data.createdAt || undefined,
+                subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
+                subscriptionEndDate: data.subscriptionEndDate || undefined,
                 progress
               }
               return client
@@ -348,7 +355,7 @@ const HomePage = () => {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                {t('dashboard.addClient')}
+                Nuevo cliente
               </motion.button>
               <motion.button
                 onClick={() => navigate('/exercises')}
@@ -368,16 +375,52 @@ const HomePage = () => {
           {isCoach ? (
             /* Vista del Coach - Lista de Clientes */
             <div className="mb-8">
-              <motion.h2 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 }}
-                className={`text-3xl font-bold mb-6 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}
-              >
-                {t('dashboard.clients')} ({clients.length})
-              </motion.h2>
+              <div className="flex items-center justify-between mb-6">
+                <motion.h2 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className={`text-3xl font-bold ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {t('dashboard.clients')} ({clients.length})
+                </motion.h2>
+                
+                {/* Botones de modo de visualización */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-2 rounded-lg transition-colors ${
+                      viewMode === 'grid'
+                        ? 'bg-primary-600 text-white'
+                        : theme === 'dark'
+                        ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    title="Vista en miniatura"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`p-2 rounded-lg transition-colors ${
+                      viewMode === 'list'
+                        ? 'bg-primary-600 text-white'
+                        : theme === 'dark'
+                        ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    title="Vista en lista"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
             {loading ? (
               <div className="text-center py-12">
@@ -406,134 +449,291 @@ const HomePage = () => {
                   {t('dashboard.addFirstClient')}
                 </p>
               </motion.div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {clients.map((client, index) => (
-                  <motion.div
-                    key={client.id}
-                    variants={cardVariants}
-                    initial="hidden"
-                    animate="visible"
-                    transition={{ delay: 0.7 + index * 0.1 }}
-                    whileHover={{ scale: 1.02, y: -5 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
-                      theme === 'dark' 
-                        ? 'bg-slate-800/80 border border-slate-700' 
-                        : 'bg-white border border-gray-200'
-                    }`}
-                  >
-                    {/* Botón de eliminar */}
-                    <button
-                      onClick={(e) => handleDeleteClient(e, client.id)}
-                      className={`absolute top-4 right-4 p-2 rounded-lg transition-colors z-10 ${
-                        theme === 'dark'
-                          ? 'hover:bg-red-500/20 text-red-400'
-                          : 'hover:bg-red-50 text-red-600'
-                      }`}
-                      title={t('dashboard.deleteClient')}
-                      aria-label={t('dashboard.deleteClient')}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+            ) : (() => {
+              // Dividir clientes en nuevos y antiguos (30 días como criterio)
+              const now = new Date()
+              const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+              
+              const newClients = clients.filter(client => {
+                if (!client.createdAt) return false
+                const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+                return createdAt >= thirtyDaysAgo
+              })
+              
+              const oldClients = clients.filter(client => {
+                if (!client.createdAt) return true
+                const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+                return createdAt < thirtyDaysAgo
+              })
 
-                    {/* Barra de Progreso */}
-                    {client.progress && (
-                      <div className="mb-4" onClick={(e) => e.stopPropagation()}>
-                        <ProgressTracker
-                          dailyProgress={0}
-                          monthlyProgress={client.progress.monthlyProgress}
-                          completedDays={client.progress.completedDays}
-                          totalDays={client.progress.totalDays}
-                          showDetails={false}
-                        />
-                      </div>
-                    )}
-                    
-                    <div 
-                      onClick={() => handleClientClick(client.id)}
-                      className="cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between mb-4 pr-8">
-                        <div>
-                          <h3 className={`text-2xl font-bold mb-1 ${
-                            theme === 'dark' ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {client.name}
-                          </h3>
-                          <p className={`text-sm ${
-                            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                          }`}>
-                            {client.email}
-                          </p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          client.status === 'active'
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                            : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-                        }`}>
-                          {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
-                        </span>
-                      </div>
-                    
-                    <div className={`mb-4 p-3 rounded-lg ${
-                      theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                    }`}>
-                      <p className={`text-sm font-semibold ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+              return (
+                <>
+                  {/* Clientes Nuevos */}
+                  {newClients.length > 0 && (
+                    <div className="mb-8">
+                      <motion.h3 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.7 }}
+                        className={`text-2xl font-bold mb-4 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        Clientes Nuevos ({newClients.length})
+                      </motion.h3>
+                      <div className={`${
+                        viewMode === 'grid' 
+                          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                          : 'space-y-3'
                       }`}>
-                        {client.plan}
-                      </p>
+                        {newClients.map((client, index) => (
+                          <motion.div
+                            key={client.id}
+                            variants={cardVariants}
+                            initial="hidden"
+                            animate="visible"
+                            transition={{ delay: 0.8 + index * 0.1 }}
+                            whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
+                              viewMode === 'list' 
+                                ? 'p-3' 
+                                : 'p-6'
+                            } ${
+                              theme === 'dark' 
+                                ? 'bg-slate-800/80 border border-slate-700' 
+                                : 'bg-white border border-gray-200'
+                            }`}
+                          >
+                            {/* Barra de Progreso - Clickeable */}
+                            {client.progress && (
+                              <div 
+                                className="mb-2 cursor-pointer" 
+                                onClick={() => handleClientClick(client.id)}
+                              >
+                                <ProgressTracker
+                                  dailyProgress={0}
+                                  monthlyProgress={client.progress.monthlyProgress}
+                                  completedDays={client.progress.completedDays}
+                                  totalDays={client.progress.totalDays}
+                                  showDetails={false}
+                                />
+                              </div>
+                            )}
+                            
+                            <div>
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h3 className={`text-2xl font-bold mb-1 ${
+                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {client.name}
+                                  </h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    client.status === 'active'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                      : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                  }`}>
+                                    {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
+                                  </span>
+                                  {/* Botón de eliminar */}
+                                  <button
+                                    onClick={(e) => handleDeleteClient(e, client.id)}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                      theme === 'dark'
+                                        ? 'hover:bg-red-500/20 text-red-400'
+                                        : 'hover:bg-red-50 text-red-600'
+                                    }`}
+                                    title={t('dashboard.deleteClient')}
+                                    aria-label={t('dashboard.deleteClient')}
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <div className={`mb-4 p-3 rounded-lg ${
+                                theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                              }`}>
+                                <p className={`text-sm font-semibold ${
+                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                                }`}>
+                                  {client.plan}
+                                </p>
+                              </div>
+
+                              {/* Suscripción */}
+                              {(client.subscriptionStartDate || client.createdAt) && (
+                                <div className={`mb-3 p-2 rounded-lg ${
+                                  theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
+                                }`}>
+                                  <p className={`text-xs font-semibold ${
+                                    theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
+                                  }`}>
+                                    Suscrito desde el día {(() => {
+                                      const startDate = client.subscriptionStartDate?.toDate 
+                                        ? client.subscriptionStartDate.toDate() 
+                                        : client.createdAt?.toDate 
+                                        ? client.createdAt.toDate() 
+                                        : client.subscriptionStartDate 
+                                        ? new Date(client.subscriptionStartDate) 
+                                        : client.createdAt 
+                                        ? new Date(client.createdAt) 
+                                        : new Date()
+                                      return startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                    })()}
+                                    {client.subscriptionEndDate ? `, hasta el día ${(() => {
+                                      const endDate = client.subscriptionEndDate?.toDate 
+                                        ? client.subscriptionEndDate.toDate() 
+                                        : new Date(client.subscriptionEndDate)
+                                      return endDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                    })()}` : ''}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
                     </div>
+                  )}
 
-                    {/* Tiempo activo en el plan */}
-                    {client.createdAt && (
-                      <div className={`mb-3 p-2 rounded-lg ${
-                        theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
+                  {/* Clientes Antiguos */}
+                  {oldClients.length > 0 && (
+                    <div className="mb-8">
+                      <motion.h3 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.7 + (newClients.length * 0.1) }}
+                        className={`text-2xl font-bold mb-4 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        Clientes Antiguos ({oldClients.length})
+                      </motion.h3>
+                      <div className={`${
+                        viewMode === 'grid' 
+                          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                          : 'space-y-3'
                       }`}>
-                        <p className={`text-xs font-semibold ${
-                          theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
-                        }`}>
-                          ⏱️ Tiempo activo: {calculateTimeActive(client.createdAt)}
-                        </p>
-                      </div>
-                    )}
+                        {oldClients.map((client, index) => (
+                          <motion.div
+                            key={client.id}
+                            variants={cardVariants}
+                            initial="hidden"
+                            animate="visible"
+                            transition={{ delay: 0.8 + (newClients.length * 0.1) + index * 0.1 }}
+                            whileHover={{ scale: 1.02, y: -5 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
+                              theme === 'dark' 
+                                ? 'bg-slate-800/80 border border-slate-700' 
+                                : 'bg-white border border-gray-200'
+                            }`}
+                          >
+                            {/* Barra de Progreso - Clickeable */}
+                            {client.progress && (
+                              <div 
+                                className="mb-2 cursor-pointer" 
+                                onClick={() => handleClientClick(client.id)}
+                              >
+                                <ProgressTracker
+                                  dailyProgress={0}
+                                  monthlyProgress={client.progress.monthlyProgress}
+                                  completedDays={client.progress.completedDays}
+                                  totalDays={client.progress.totalDays}
+                                  showDetails={false}
+                                />
+                              </div>
+                            )}
+                            
+                            <div>
+                              <div className="flex items-start justify-between mb-4">
+                                <div>
+                                  <h3 className={`text-2xl font-bold mb-1 ${
+                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {client.name}
+                                  </h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    client.status === 'active'
+                                      ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                      : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                  }`}>
+                                    {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
+                                  </span>
+                                  {/* Botón de eliminar */}
+                                  <button
+                                    onClick={(e) => handleDeleteClient(e, client.id)}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                      theme === 'dark'
+                                        ? 'hover:bg-red-500/20 text-red-400'
+                                        : 'hover:bg-red-50 text-red-600'
+                                    }`}
+                                    title={t('dashboard.deleteClient')}
+                                    aria-label={t('dashboard.deleteClient')}
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              <div className={`mb-4 p-3 rounded-lg ${
+                                theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                              }`}>
+                                <p className={`text-sm font-semibold ${
+                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                                }`}>
+                                  {client.plan}
+                                </p>
+                              </div>
 
-                    {/* Tiempo promedio de entrenamiento */}
-                    {client.progress?.averageWorkoutTime && (
-                      <div className={`mb-3 p-2 rounded-lg ${
-                        theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'
-                      }`}>
-                        <p className={`text-xs font-semibold ${
-                          theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
-                        }`}>
-                          ⏱️ Tiempo promedio: {formatWorkoutTime(client.progress.averageWorkoutTime)}
-                        </p>
-                      </div>
-                    )}
-
-                    {client.lastWorkout && (
-                      <p className={`text-xs ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-                      }`}>
-                        {t('dashboard.lastWorkout')}: {new Date(client.lastWorkout).toLocaleDateString()}
-                      </p>
-                    )}
-
-                      <div className="mt-4 pt-4 border-t border-slate-700/50">
-                        <p className={`text-sm font-semibold text-primary-400 ${
-                          theme === 'dark' ? '' : 'text-primary-600'
-                        }`}>
-                          {t('dashboard.viewWorkouts')} →
-                        </p>
+                              {/* Suscripción */}
+                              {(client.subscriptionStartDate || client.createdAt) && (
+                                <div className={`mb-3 p-2 rounded-lg ${
+                                  theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
+                                }`}>
+                                  <p className={`text-xs font-semibold ${
+                                    theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
+                                  }`}>
+                                    Suscrito desde el día {(() => {
+                                      const startDate = client.subscriptionStartDate?.toDate 
+                                        ? client.subscriptionStartDate.toDate() 
+                                        : client.createdAt?.toDate 
+                                        ? client.createdAt.toDate() 
+                                        : client.subscriptionStartDate 
+                                        ? new Date(client.subscriptionStartDate) 
+                                        : client.createdAt 
+                                        ? new Date(client.createdAt) 
+                                        : new Date()
+                                      return startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                    })()}
+                                    {client.subscriptionEndDate ? `, hasta el día ${(() => {
+                                      const endDate = client.subscriptionEndDate?.toDate 
+                                        ? client.subscriptionEndDate.toDate() 
+                                        : new Date(client.subscriptionEndDate)
+                                      return endDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                    })()}` : ''}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))}
                       </div>
                     </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
+                  )}
+                </>
+              )
+            })()}
             </div>
           ) : (
             /* Vista del Cliente - Su Rutina/Entrenamiento */

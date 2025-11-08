@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { exerciseCategories, searchExercises, ExerciseData } from '../data/exercises'
@@ -18,6 +18,15 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
   const [sets, setSets] = useState('3')
   const [reps, setReps] = useState('12')
   const [customVideo, setCustomVideo] = useState('')
+
+  // Prevenir scroll del body cuando el modal está abierto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [])
 
   const filteredExercises = useMemo(() => {
     return searchExercises(searchQuery, selectedCategory || undefined)
@@ -40,7 +49,13 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ 
+        overflow: 'hidden',
+        touchAction: 'none'
+      }}
+    >
       {/* Overlay */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -55,6 +70,7 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        data-modal-content
         className={`relative w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl ${
           theme === 'dark' ? 'bg-slate-800' : 'bg-white'
         } overflow-hidden flex flex-col`}
@@ -124,8 +140,10 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
             </svg>
           </div>
 
-          {/* Category Filter */}
-          <div className="flex flex-wrap gap-2">
+          {/* Category Filter - Múltiples filas */}
+          <div 
+            className="flex flex-wrap gap-2"
+          >
             <button
               onClick={() => setSelectedCategory('')}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -158,7 +176,23 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
 
         {/* Exercise List */}
         <div className="flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto p-4">
+          <div 
+            className="h-full overflow-y-auto p-4"
+            data-scrollable
+            style={{ 
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-y',
+              overscrollBehavior: 'contain'
+            }}
+            onWheel={(e) => {
+              // Permitir scroll vertical normal
+              e.stopPropagation()
+            }}
+            onTouchMove={(e) => {
+              // Permitir scroll táctil
+              e.stopPropagation()
+            }}
+          >
             {filteredExercises.length === 0 ? (
               <div className={`text-center py-12 ${
                 theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
@@ -166,14 +200,14 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
                 <p>No se encontraron ejercicios</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {filteredExercises.map((exercise) => (
                   <motion.div
                     key={exercise.id}
                     onClick={() => handleSelectExercise(exercise)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                    className={`p-2.5 rounded-lg border-2 cursor-pointer transition-all ${
                       selectedExercise?.id === exercise.id
                         ? 'border-primary-500 bg-primary-500/10'
                         : theme === 'dark'
@@ -181,35 +215,26 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
                         : 'border-gray-200 bg-gray-50 hover:border-gray-300'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <h3 className={`font-bold text-lg mb-1 ${
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-bold text-sm mb-0.5 truncate ${
                           theme === 'dark' ? 'text-white' : 'text-gray-900'
                         }`}>
                           {exercise.name}
                         </h3>
-                        <p className={`text-xs mb-2 ${
+                        <p className={`text-xs mb-1 ${
                           theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                         }`}>
                           {exercise.category}
                         </p>
                         {exercise.description && (
-                          <p className={`text-sm ${
+                          <p className={`text-xs line-clamp-2 ${
                             theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                           }`}>
                             {exercise.description}
                           </p>
                         )}
                       </div>
-                      {exercise.video && (
-                        <div className="flex-shrink-0">
-                          <div className="w-12 h-12 rounded-lg bg-red-600 flex items-center justify-center">
-                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M8 5v14l11-7z" />
-                            </svg>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </motion.div>
                 ))}

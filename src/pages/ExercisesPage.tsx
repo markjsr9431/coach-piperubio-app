@@ -1,17 +1,126 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
-import { exerciseCategories, searchExercises } from '../data/exercises'
+import { useAuth } from '../contexts/AuthContext'
+import { exerciseCategories, searchExercises, ExerciseData } from '../data/exercises'
+import { db } from '../firebaseConfig'
+import { collection, getDocs } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
+import AddExerciseModal from '../components/AddExerciseModal'
+import EditExerciseModal from '../components/EditExerciseModal'
 
 const ExercisesPage = () => {
   const { theme } = useTheme()
+  const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseData | null>(null)
+  const [exercises, setExercises] = useState<ExerciseData[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
+
+  // Cargar ejercicios desde Firestore y combinar con ejercicios estáticos
+  useEffect(() => {
+    const loadExercises = async () => {
+      try {
+        // Cargar ejercicios de Firestore
+        const exercisesRef = collection(db, 'exercises')
+        const snapshot = await getDocs(exercisesRef)
+        const firestoreExercises: ExerciseData[] = []
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data()
+          firestoreExercises.push({
+            id: `firestore-${doc.id}`, // Prefijo para identificar ejercicios de Firestore
+            name: data.name || '',
+            category: data.category || '',
+            description: data.description || '',
+            video: data.video || ''
+          })
+        })
+
+        // Combinar con ejercicios estáticos (evitar duplicados por nombre)
+        const staticExercises = searchExercises('', undefined)
+        const allExercises = [...staticExercises]
+        
+        // Añadir ejercicios de Firestore que no estén en los estáticos
+        firestoreExercises.forEach((firestoreExercise) => {
+          if (!allExercises.find(e => e.name.toLowerCase() === firestoreExercise.name.toLowerCase())) {
+            allExercises.push(firestoreExercise)
+          }
+        })
+
+        setExercises(allExercises)
+      } catch (error) {
+        console.error('Error loading exercises:', error)
+        // Si falla, usar solo ejercicios estáticos
+        setExercises(searchExercises('', undefined))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadExercises()
+  }, [])
+
+  const handleExerciseAdded = () => {
+    // Recargar ejercicios
+    const loadExercises = async () => {
+      try {
+        const exercisesRef = collection(db, 'exercises')
+        const snapshot = await getDocs(exercisesRef)
+        const firestoreExercises: ExerciseData[] = []
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data()
+          firestoreExercises.push({
+            id: `firestore-${doc.id}`, // Prefijo para identificar ejercicios de Firestore
+            name: data.name || '',
+            category: data.category || '',
+            description: data.description || '',
+            video: data.video || ''
+          })
+        })
+
+        const staticExercises = searchExercises('', undefined)
+        const allExercises = [...staticExercises]
+        
+        firestoreExercises.forEach((firestoreExercise) => {
+          if (!allExercises.find(e => e.name.toLowerCase() === firestoreExercise.name.toLowerCase())) {
+            allExercises.push(firestoreExercise)
+          }
+        })
+
+        setExercises(allExercises)
+      } catch (error) {
+        console.error('Error reloading exercises:', error)
+      }
+    }
+    loadExercises()
+  }
 
   const filteredExercises = useMemo(() => {
-    return searchExercises(searchQuery, selectedCategory || undefined)
-  }, [searchQuery, selectedCategory])
+    let filtered = exercises
+
+    // Filtrar por búsqueda
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(exercise =>
+        exercise.name.toLowerCase().includes(query) ||
+        exercise.description?.toLowerCase().includes(query)
+      )
+    }
+
+    // Filtrar por categoría
+    if (selectedCategory) {
+      filtered = filtered.filter(exercise => exercise.category === selectedCategory)
+    }
+
+    return filtered
+  }, [exercises, searchQuery, selectedCategory])
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${
@@ -39,11 +148,26 @@ const ExercisesPage = () => {
             }`}>
               Base de Datos de Ejercicios
             </h1>
-            <p className={`text-xl ${
+            <p className={`text-xl mb-6 ${
               theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
             }`}>
               Explora todos los ejercicios disponibles por categoría
             </p>
+            
+            {/* Botón Añadir Ejercicio - Solo para coach */}
+            {isCoach && (
+              <motion.button
+                onClick={() => setShowAddModal(true)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-primary-600 to-primary-800 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 font-semibold mx-auto"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Añadir Ejercicio
+              </motion.button>
+            )}
           </div>
 
           {/* Search and Filters */}
@@ -138,30 +262,19 @@ const ExercisesPage = () => {
                     theme === 'dark' ? 'bg-slate-800/80 border border-slate-700' : 'bg-white border border-gray-200'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex-1">
-                      <h3 className={`font-bold text-xl mb-2 ${
-                        theme === 'dark' ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {exercise.name}
-                      </h3>
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                        theme === 'dark' 
-                          ? 'bg-primary-500/20 text-primary-300' 
-                          : 'bg-primary-100 text-primary-700'
-                      }`}>
-                        {exercise.category}
-                      </span>
-                    </div>
-                    {exercise.video && (
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 rounded-lg bg-red-600 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
+                  <div className="mb-3">
+                    <h3 className={`font-bold text-xl mb-2 ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {exercise.name}
+                    </h3>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      theme === 'dark' 
+                        ? 'bg-primary-500/20 text-primary-300' 
+                        : 'bg-primary-100 text-primary-700'
+                    }`}>
+                      {exercise.category}
+                    </span>
                   </div>
                   
                   {exercise.description && (
@@ -172,22 +285,26 @@ const ExercisesPage = () => {
                     </p>
                   )}
 
-                  {exercise.video && (
-                    <a
-                      href={exercise.video}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`inline-flex items-center gap-2 text-sm font-semibold transition-colors ${
+                  {/* Botón de editar - Solo para coach, visible en todos los ejercicios */}
+                  {isCoach && (
+                    <button
+                      onClick={() => {
+                        // Permitir editar todos los ejercicios (estáticos y de Firestore)
+                        setSelectedExercise(exercise)
+                        setShowEditModal(true)
+                      }}
+                      className={`mt-3 inline-flex items-center gap-2 text-sm font-semibold transition-colors ${
                         theme === 'dark'
                           ? 'text-primary-400 hover:text-primary-300'
                           : 'text-primary-600 hover:text-primary-700'
                       }`}
+                      title="Editar ejercicio"
                     >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      Ver video
-                    </a>
+                      Editar
+                    </button>
                   )}
                 </motion.div>
               ))}
@@ -195,6 +312,24 @@ const ExercisesPage = () => {
           )}
         </motion.div>
       </div>
+
+      {/* Modal para añadir ejercicio */}
+      <AddExerciseModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSuccess={handleExerciseAdded}
+      />
+
+      {/* Modal para editar ejercicio */}
+      <EditExerciseModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false)
+          setSelectedExercise(null)
+        }}
+        onSuccess={handleExerciseAdded}
+        exercise={selectedExercise}
+      />
     </div>
   )
 }

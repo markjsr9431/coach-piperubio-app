@@ -42,6 +42,8 @@ const WorkoutPage = () => {
   const [isTimerMinimized, setIsTimerMinimized] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
   const [lastCompletedCount, setLastCompletedCount] = useState(0)
+  const [hasShownComplete, setHasShownComplete] = useState(false)
+  const [dayProgress, setDayProgress] = useState<{ progress: number; completedExercises: Set<string> } | null>(null)
   
   // Timer para tracking de tiempo de entrenamiento
   const workoutStartTime = useRef<Date | null>(null)
@@ -50,6 +52,7 @@ const WorkoutPage = () => {
   const totalExercises = workout?.sections.reduce((acc, section) => acc + section.exercises.length, 0) || 0
   const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
   const isWorkoutComplete = totalExercises > 0 && completedExercises.size === totalExercises
+  const isDayCompleted = dayProgress?.progress === 100
 
   // Cargar entrenamiento personalizado si hay clientId
   useEffect(() => {
@@ -67,15 +70,55 @@ const WorkoutPage = () => {
             // Si no hay entrenamiento personalizado, usar el predeterminado
             setWorkout(workouts[dayIndex] || null)
           }
+
+          // Cargar progreso guardado del día
+          const progressRef = doc(db, 'clients', clientId, 'progress', `day-${dayIndex + 1}`)
+          const progressDoc = await getDoc(progressRef)
+          
+          // Obtener el workout cargado (puede ser personalizado o predeterminado)
+          const loadedWorkout = workoutDoc.exists() 
+            ? (workoutDoc.data() as Workout)
+            : (workouts[dayIndex] || null)
+          
+          if (progressDoc.exists()) {
+            const progressData = progressDoc.data()
+            const savedProgress = progressData.progress || 0
+            
+            // Si el día está completo, cargar los ejercicios completados
+            if (savedProgress === 100 && loadedWorkout) {
+              // Reconstruir el set de ejercicios completados basado en el progreso guardado
+              const completedSet = new Set<string>()
+              loadedWorkout.sections.forEach((section, sectionIndex) => {
+                section.exercises.forEach((exercise, exerciseIndex) => {
+                  const exerciseKey = `${section.name}-${exercise.name}-${exerciseIndex}`
+                  // Si el progreso es 100%, todos los ejercicios están completados
+                  completedSet.add(exerciseKey)
+                })
+              })
+              setCompletedExercises(completedSet)
+              setDayProgress({ progress: 100, completedExercises: completedSet })
+              // Establecer lastCompletedCount al total para evitar que se muestre el modal al cargar un día ya completo
+              setLastCompletedCount(completedSet.size)
+              setHasShownComplete(true) // Marcar que ya se mostró (o no debe mostrarse porque ya estaba completo)
+            } else {
+              setDayProgress({ progress: savedProgress, completedExercises: new Set() })
+              setLastCompletedCount(0)
+            }
+          } else {
+            setDayProgress(null)
+            setLastCompletedCount(0)
+          }
         } catch (error) {
           console.error('Error loading workout:', error)
           setWorkout(workouts[dayIndex] || null)
+          setDayProgress(null)
         } finally {
           setLoadingWorkout(false)
         }
       } else {
         setWorkout(workouts[dayIndex] || null)
         setLoadingWorkout(false)
+        setDayProgress(null)
       }
     }
 
@@ -89,10 +132,11 @@ const WorkoutPage = () => {
     }
     // Reset completion state when day changes
     setShowComplete(false)
-    setLastCompletedCount(0)
+    setHasShownComplete(false)
+    // No resetear lastCompletedCount aquí, se establecerá cuando se cargue el progreso
     
-    // Iniciar timer de entrenamiento cuando se carga la página (solo para clientes)
-    if (!isCoach && clientId && workout) {
+    // Iniciar timer de entrenamiento cuando se carga la página (solo para clientes y si el día no está completo)
+    if (!isCoach && clientId && workout && !isDayCompleted) {
       workoutStartTime.current = new Date()
     }
     
@@ -101,7 +145,7 @@ const WorkoutPage = () => {
         clearInterval(workoutTimerRef.current)
       }
     }
-  }, [day, workout, clientId, isCoach])
+  }, [day, workout, clientId, isCoach, isDayCompleted])
 
   // Guardar progreso en Firestore cuando cambia
   useEffect(() => {
@@ -171,6 +215,23 @@ const WorkoutPage = () => {
           averageWorkoutTime,
           lastUpdated: serverTimestamp()
         }, { merge: true })
+
+        // Actualizar estado local dayProgress cuando el progreso llega al 100%
+        if (progress === 100) {
+          setDayProgress(prev => {
+            if (prev?.progress !== 100) {
+              return { progress: 100, completedExercises: new Set(completedExercises) }
+            }
+            return prev
+          })
+        } else {
+          setDayProgress(prev => {
+            if (prev?.progress !== progress) {
+              return { progress, completedExercises: new Set(completedExercises) }
+            }
+            return prev
+          })
+        }
       } catch (error) {
         console.error('Error saving progress:', error)
       }
@@ -181,29 +242,38 @@ const WorkoutPage = () => {
     return () => clearTimeout(timeoutId)
   }, [clientId, dayIndex, completedExercises.size, totalExercises, workout])
 
-  // Detectar cuando se completa el entrenamiento
+  // Detectar cuando se completa el entrenamiento - Solo para clientes
   useEffect(() => {
+    // Solo procesar si es un cliente (no el coach)
+    if (isCoach) {
+      return
+    }
+
     const currentCompletedCount = completedExercises.size
     
-    // Si todos los ejercicios están completados y no se había mostrado antes para este estado
-    if (isWorkoutComplete && totalExercises > 0) {
-      // Solo mostrar si acabamos de completar todos (no si ya estaban todos completados)
+    // Si todos los ejercicios están completados y no se ha mostrado el mensaje aún
+    if (isWorkoutComplete && totalExercises > 0 && !hasShownComplete) {
+      // Verificar que acabamos de completar todos (el conteo anterior era menor)
       if (currentCompletedCount === totalExercises && lastCompletedCount < totalExercises) {
         // Pequeño delay para mejor UX
         setTimeout(() => {
           setShowComplete(true)
+          setHasShownComplete(true)
         }, 500)
       }
     }
     
     // Actualizar el último conteo
-    setLastCompletedCount(currentCompletedCount)
+    if (currentCompletedCount !== lastCompletedCount) {
+      setLastCompletedCount(currentCompletedCount)
+    }
     
     // Si el usuario desmarca un ejercicio (ya no está completo), ocultar la alerta si está visible
     if (!isWorkoutComplete && showComplete) {
       setShowComplete(false)
+      setHasShownComplete(false)
     }
-  }, [isWorkoutComplete, completedExercises.size, totalExercises, lastCompletedCount, showComplete])
+  }, [isWorkoutComplete, completedExercises.size, totalExercises, lastCompletedCount, showComplete, hasShownComplete, isCoach])
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => {
@@ -218,10 +288,23 @@ const WorkoutPage = () => {
   }
 
   const toggleExercise = (exerciseKey: string) => {
+    // Si es cliente y el día está completo, no permitir cambios
+    if (!isCoach && isDayCompleted) {
+      return
+    }
+    
+    // Si es cliente y el ejercicio ya está completado, no permitir desseleccionar
+    if (!isCoach && completedExercises.has(exerciseKey)) {
+      return
+    }
+    
     setCompletedExercises(prev => {
       const newSet = new Set(prev)
       if (newSet.has(exerciseKey)) {
-        newSet.delete(exerciseKey)
+        // Solo permitir desseleccionar si es el coach
+        if (isCoach) {
+          newSet.delete(exerciseKey)
+        }
       } else {
         newSet.add(exerciseKey)
       }
@@ -356,13 +439,17 @@ const WorkoutPage = () => {
                     <div className="px-6 py-4 space-y-3">
                       {section.exercises.map((exercise, exerciseIndex) => {
                         const exerciseKey = `${section.name}-${exercise.name}-${exerciseIndex}`
+                        const isCompleted = completedExercises.has(exerciseKey)
+                        // Deshabilitar si es cliente y el día está completo, o si es cliente y el ejercicio ya está completado
+                        const isDisabled = !isCoach && (isDayCompleted || isCompleted)
                         return (
                           <ExerciseItem
                             key={exerciseKey}
                             exercise={exercise}
-                            isCompleted={completedExercises.has(exerciseKey)}
+                            isCompleted={isCompleted}
                             onToggle={() => toggleExercise(exerciseKey)}
                             onWatchVideo={() => setSelectedVideo(exercise.video)}
+                            disabled={isDisabled}
                           />
                         )
                       })}
@@ -378,9 +465,9 @@ const WorkoutPage = () => {
         <div className="flex justify-between mt-8 gap-4">
           <button
             onClick={handlePreviousDay}
-            disabled={dayIndex === 0}
+            disabled={dayIndex === 0 || (!isCoach && isDayCompleted)}
             className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${
-              dayIndex === 0
+              dayIndex === 0 || (!isCoach && isDayCompleted)
                 ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                 : 'bg-primary-600 hover:bg-primary-700 text-white'
             }`}
@@ -389,9 +476,9 @@ const WorkoutPage = () => {
           </button>
           <button
             onClick={handleNextDay}
-            disabled={dayIndex === workouts.length - 1}
+            disabled={dayIndex === workouts.length - 1 || (!isCoach && isDayCompleted)}
             className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-colors ${
-              dayIndex === workouts.length - 1
+              dayIndex === workouts.length - 1 || (!isCoach && isDayCompleted)
                 ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                 : 'bg-primary-600 hover:bg-primary-700 text-white'
             }`}
@@ -457,8 +544,8 @@ const WorkoutPage = () => {
         </AnimatePresence>
       )}
 
-      {/* Animación de Entrenamiento Finalizado */}
-      {showComplete && (
+      {/* Animación de Entrenamiento Finalizado - Solo para clientes */}
+      {showComplete && !isCoach && (
         <WorkoutComplete onClose={() => setShowComplete(false)} />
       )}
     </div>

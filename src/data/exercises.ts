@@ -10,19 +10,20 @@ export interface ExerciseData {
 }
 
 export const exerciseCategories = [
-  'Calentamiento',
-  'Fuerza',
-  'Cardio',
-  'Gimnásticos',
-  'Peso Corporal',
-  'Pesas',
-  'Prevención de Lesiones',
-  'Estiramiento',
-  'EMOM',
-  'Tabata',
   'AMRAP',
-  'For Time'
-];
+  'Calentamiento',
+  'Cardio',
+  'EMOM',
+  'Estiramiento',
+  'For Time',
+  'Fuerza',
+  'Gimnásticos',
+  'Levantamiento Olímpico',
+  'Pesas',
+  'Peso Corporal',
+  'Prevención de Lesiones',
+  'Tabata'
+].sort(); // Ordenar alfabéticamente
 
 export const exercises: ExerciseData[] = [
   // Calentamiento

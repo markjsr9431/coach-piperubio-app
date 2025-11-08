@@ -149,13 +149,18 @@ export const workouts: Workout[] = [
   }
 ];
 
-// Generate days 6-20 with placeholder data
-for (let i = 6; i <= 20; i++) {
-  const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-  const dayName = days[(i - 1) % 7];
+// Generate days 6-30 with placeholder data
+// Lunes a Sábado (sin domingos), sábados son opcionales
+const weekDays = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+let dayCounter = 6;
+let weekDayIndex = 0;
+
+while (dayCounter <= 30) {
+  const dayName = weekDays[weekDayIndex];
+  const isSaturday = weekDayIndex === 5; // Sábado es el índice 5
   
   workouts.push({
-    day: `Día ${i} - ${dayName}`,
+    day: isSaturday ? `Día ${dayCounter} - ${dayName} (Opcional)` : `Día ${dayCounter} - ${dayName}`,
     sections: [
       {
         name: "Calentamiento",
@@ -177,5 +182,8 @@ for (let i = 6; i <= 20; i++) {
       }
     ]
   });
+  
+  dayCounter++;
+  weekDayIndex = (weekDayIndex + 1) % 6; // Ciclo de lunes a sábado (6 días)
 }
 
