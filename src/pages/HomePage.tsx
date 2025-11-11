@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import TopBanner from '../components/TopBanner'
 import AddClientModal from '../components/AddClientModal'
 import { db } from '../firebaseConfig'
-import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc } from 'firebase/firestore'
+import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore'
 import { calculateTimeActive } from '../utils/timeUtils'
 import ProgressTracker from '../components/ProgressTracker'
 
@@ -43,6 +43,7 @@ const HomePage = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [activeCategory, setActiveCategory] = useState<'new' | 'old' | null>(null)
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -264,6 +265,21 @@ const HomePage = () => {
     }
   }
 
+  const handleMoveClientCategory = async (e: React.MouseEvent, clientId: string, newCategory: 'new' | 'old') => {
+    e.stopPropagation() // Evitar que se active el onClick de la tarjeta
+    
+    try {
+      const clientRef = doc(db, 'clients', clientId)
+      await updateDoc(clientRef, {
+        clientCategory: newCategory,
+        categoryUpdatedAt: new Date().toISOString()
+      })
+    } catch (error: any) {
+      console.error('Error al cambiar categoría del cliente:', error)
+      alert('Error al cambiar la categoría del cliente')
+    }
+  }
+
   const cardVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: { 
@@ -444,37 +460,117 @@ const HomePage = () => {
                 </p>
               </motion.div>
             ) : (() => {
-              // Dividir clientes en nuevos y antiguos (30 días como criterio)
-              const now = new Date()
-              const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-              
+              // Dividir clientes en nuevos y antiguos
+              // Primero verificar si tienen categoría manual asignada
               const newClients = clients.filter(client => {
+                // Si tiene categoría manual, usar esa
+                if ((client as any).clientCategory === 'new') return true
+                if ((client as any).clientCategory === 'old') return false
+                // Si no tiene categoría manual, usar criterio de 30 días
                 if (!client.createdAt) return false
                 const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
                 return createdAt >= thirtyDaysAgo
               })
               
               const oldClients = clients.filter(client => {
+                // Si tiene categoría manual, usar esa
+                if ((client as any).clientCategory === 'old') return true
+                if ((client as any).clientCategory === 'new') return false
+                // Si no tiene categoría manual, usar criterio de 30 días
                 if (!client.createdAt) return true
                 const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
                 return createdAt < thirtyDaysAgo
               })
+              
+              const allClients = clients
 
               return (
                 <>
-                  {/* Clientes Nuevos */}
-                  {newClients.length > 0 && (
-                    <div className="mb-8">
-                      <motion.h3 
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 }}
-                        className={`text-2xl font-bold mb-4 ${
-                          theme === 'dark' ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        Clientes Nuevos ({newClients.length})
-                      </motion.h3>
+                  {/* Vista de fichas o listado según activeCategory */}
+                  {activeCategory === null ? (
+                    <>
+                      {/* Fichas grandes clickeables */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-8">
+                        {/* Ficha Clientes Nuevos */}
+                        <motion.div
+                          variants={cardVariants}
+                          initial="hidden"
+                          animate="visible"
+                          whileHover={{ scale: 1.05, y: -5 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-green-600 to-green-800`}
+                          onClick={() => setActiveCategory('new')}
+                        >
+                          <div className="text-center">
+                            <div className="text-5xl font-bold text-white mb-3">
+                              {newClients.length}
+                            </div>
+                            <div className="text-white font-semibold text-2xl mb-2">
+                              Clientes Nuevos
+                            </div>
+                            <div className="text-green-100 text-base mt-3">
+                              Haz clic para ver el listado
+                            </div>
+                          </div>
+                        </motion.div>
+
+                        {/* Ficha Clientes Antiguos */}
+                        <motion.div
+                          variants={cardVariants}
+                          initial="hidden"
+                          animate="visible"
+                          whileHover={{ scale: 1.05, y: -5 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-blue-600 to-blue-800`}
+                          onClick={() => setActiveCategory('old')}
+                        >
+                          <div className="text-center">
+                            <div className="text-5xl font-bold text-white mb-3">
+                              {oldClients.length}
+                            </div>
+                            <div className="text-white font-semibold text-2xl mb-2">
+                              Clientes Antiguos
+                            </div>
+                            <div className="text-blue-100 text-base mt-3">
+                              Haz clic para ver el listado
+                            </div>
+                          </div>
+                        </motion.div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Botón Volver */}
+                      <div className="mb-6">
+                        <button
+                          onClick={() => setActiveCategory(null)}
+                          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
+                            theme === 'dark'
+                              ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                              : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                          }`}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                          Volver
+                        </button>
+                      </div>
+
+                      {/* Listado de clientes según categoría activa */}
+                      {activeCategory === 'new' && newClients.length > 0 && (
+                        <div className="mb-8">
+                          <motion.h3 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`text-2xl font-bold mb-4 ${
+                              theme === 'dark' ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            Clientes Nuevos ({newClients.length})
+                          </motion.h3>
                       <div className={`${
                         viewMode === 'grid' 
                           ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
@@ -549,21 +645,42 @@ const HomePage = () => {
                                   }`}>
                                     {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
                                   </span>
-                                  {/* Botón de eliminar */}
-                                  <button
-                                    onClick={(e) => handleDeleteClient(e, client.id)}
-                                    className={`p-2 rounded-lg transition-colors ${
-                                      theme === 'dark'
-                                        ? 'hover:bg-red-500/20 text-red-400'
-                                        : 'hover:bg-red-50 text-red-600'
-                                    }`}
-                                    title={t('dashboard.deleteClient')}
-                                    aria-label={t('dashboard.deleteClient')}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
+                                  {/* Dropdown de categoría y botón eliminar - Solo para coach */}
+                                  <div className="flex items-center gap-2">
+                                    {isCoach && (
+                                      <select
+                                        value={(client as any).clientCategory === 'old' ? 'old' : (client as any).clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
+                                        onChange={(e) => {
+                                          const newCategory = e.target.value as 'new' | 'old'
+                                          handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                          theme === 'dark'
+                                            ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                                            : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+                                        }`}
+                                        title="Cambiar categoría"
+                                      >
+                                        <option value="new">Nuevo</option>
+                                        <option value="old">Antiguo</option>
+                                      </select>
+                                    )}
+                                    <button
+                                      onClick={(e) => handleDeleteClient(e, client.id)}
+                                      className={`p-2 rounded-lg transition-colors ${
+                                        theme === 'dark'
+                                          ? 'hover:bg-red-500/20 text-red-400'
+                                          : 'hover:bg-red-50 text-red-600'
+                                      }`}
+                                      title={t('dashboard.deleteClient')}
+                                      aria-label={t('dashboard.deleteClient')}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                               
@@ -613,19 +730,18 @@ const HomePage = () => {
                     </div>
                   )}
 
-                  {/* Clientes Antiguos */}
-                  {oldClients.length > 0 && (
-                    <div className="mb-8">
-                      <motion.h3 
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 + (newClients.length * 0.1) }}
-                        className={`text-2xl font-bold mb-4 ${
-                          theme === 'dark' ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        Clientes Antiguos ({oldClients.length})
-                      </motion.h3>
+                      {/* Listado de clientes antiguos */}
+                      {activeCategory === 'old' && oldClients.length > 0 && (
+                        <div className="mb-8">
+                          <motion.h3 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className={`text-2xl font-bold mb-4 ${
+                              theme === 'dark' ? 'text-white' : 'text-gray-900'
+                            }`}
+                          >
+                            Clientes Antiguos ({oldClients.length})
+                          </motion.h3>
                       <div className={`${
                         viewMode === 'grid' 
                           ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
@@ -696,21 +812,42 @@ const HomePage = () => {
                                   }`}>
                                     {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
                                   </span>
-                                  {/* Botón de eliminar */}
-                                  <button
-                                    onClick={(e) => handleDeleteClient(e, client.id)}
-                                    className={`p-2 rounded-lg transition-colors ${
-                                      theme === 'dark'
-                                        ? 'hover:bg-red-500/20 text-red-400'
-                                        : 'hover:bg-red-50 text-red-600'
-                                    }`}
-                                    title={t('dashboard.deleteClient')}
-                                    aria-label={t('dashboard.deleteClient')}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
+                                  {/* Dropdown de categoría y botón eliminar - Solo para coach */}
+                                  <div className="flex items-center gap-2">
+                                    {isCoach && (
+                                      <select
+                                        value={(client as any).clientCategory === 'old' ? 'old' : (client as any).clientCategory === 'new' ? 'new' : (oldClients.includes(client) ? 'old' : 'new')}
+                                        onChange={(e) => {
+                                          const newCategory = e.target.value as 'new' | 'old'
+                                          handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                          theme === 'dark'
+                                            ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                                            : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+                                        }`}
+                                        title="Cambiar categoría"
+                                      >
+                                        <option value="new">Nuevo</option>
+                                        <option value="old">Antiguo</option>
+                                      </select>
+                                    )}
+                                    <button
+                                      onClick={(e) => handleDeleteClient(e, client.id)}
+                                      className={`p-2 rounded-lg transition-colors ${
+                                        theme === 'dark'
+                                          ? 'hover:bg-red-500/20 text-red-400'
+                                          : 'hover:bg-red-50 text-red-600'
+                                      }`}
+                                      title={t('dashboard.deleteClient')}
+                                      aria-label={t('dashboard.deleteClient')}
+                                    >
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                               
@@ -758,6 +895,150 @@ const HomePage = () => {
                         ))}
                       </div>
                     </div>
+                  )}
+                    </>
+                  )}
+
+                  {/* Listado completo de todos los clientes */}
+                  {activeCategory === null && (
+                    <div className="mb-8 mt-12">
+                      <motion.h3 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.8 }}
+                        className={`text-2xl font-bold mb-4 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        Todos los Clientes ({allClients.length})
+                      </motion.h3>
+                    <div className={`${
+                      viewMode === 'grid' 
+                        ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                        : 'space-y-3'
+                    }`}>
+                      {allClients.map((client, index) => (
+                        <motion.div
+                          key={client.id}
+                          variants={cardVariants}
+                          initial="hidden"
+                          animate="visible"
+                          transition={{ delay: 0.9 + index * 0.05 }}
+                          whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
+                            viewMode === 'list' 
+                              ? 'p-3' 
+                              : 'p-6'
+                          } ${
+                            theme === 'dark' 
+                              ? 'bg-slate-800/80 border border-slate-700' 
+                              : 'bg-white border border-gray-200'
+                          }`}
+                        >
+                          {/* Barra de Progreso - Clickeable */}
+                          {client.progress && (
+                            <div 
+                              className="mb-2 cursor-pointer" 
+                              onClick={() => handleClientClick(client.id)}
+                            >
+                              <ProgressTracker
+                                dailyProgress={0}
+                                monthlyProgress={client.progress.monthlyProgress}
+                                completedDays={client.progress.completedDays}
+                                totalDays={client.progress.totalDays}
+                                showDetails={false}
+                                createdAt={client.createdAt}
+                                lastLogin={client.lastLogin}
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Avatar o Foto del Cliente */}
+                          {(client.avatar || client.profilePhoto) && (
+                            <div className="mb-4 flex justify-center">
+                              {client.profilePhoto ? (
+                                <img
+                                  src={client.profilePhoto}
+                                  alt={client.name}
+                                  className="w-20 h-20 rounded-full object-cover border-4 border-primary-500"
+                                />
+                              ) : client.avatar ? (
+                                <div className="text-6xl">{client.avatar}</div>
+                              ) : null}
+                            </div>
+                          )}
+                          
+                          <div>
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <h3 className={`text-2xl font-bold mb-1 ${
+                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {client.name}
+                                </h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  client.status === 'active'
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                                    : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                }`}>
+                                  {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
+                                </span>
+                                {/* Dropdown de categoría y botón eliminar - Solo para coach */}
+                                <div className="flex items-center gap-2">
+                                  {isCoach && (
+                                    <select
+                                      value={(client as any).clientCategory === 'old' ? 'old' : (client as any).clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
+                                      onChange={(e) => {
+                                        const newCategory = e.target.value as 'new' | 'old'
+                                        handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                        theme === 'dark'
+                                          ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                                          : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+                                      }`}
+                                      title="Cambiar categoría"
+                                    >
+                                      <option value="new">Nuevo</option>
+                                      <option value="old">Antiguo</option>
+                                    </select>
+                                  )}
+                                  <button
+                                    onClick={(e) => handleDeleteClient(e, client.id)}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                      theme === 'dark'
+                                        ? 'hover:bg-red-500/20 text-red-400'
+                                        : 'hover:bg-red-50 text-red-600'
+                                    }`}
+                                    title={t('dashboard.deleteClient')}
+                                    aria-label={t('dashboard.deleteClient')}
+                                  >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className={`mb-4 p-3 rounded-lg ${
+                              theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                            }`}>
+                              <p className={`text-sm font-semibold ${
+                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                              }`}>
+                                {client.plan}
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
                   )}
                 </>
               )
@@ -865,6 +1146,7 @@ const HomePage = () => {
         onClose={() => setShowAddModal(false)}
         onSuccess={handleClientAdded}
       />
+
     </div>
   )
 }

@@ -117,7 +117,7 @@ const ProgressTracker = ({
             ? 'bg-green-500/20 border border-green-500/50'
             : monthlyProgress >= 50
             ? 'bg-yellow-500/20 border border-yellow-500/50'
-            : 'bg-red-500/20 border border-red-500/50'
+            : ''
         }`}>
           <div className="flex items-center gap-2">
             {monthlyProgress >= 80 ? (
@@ -140,17 +140,6 @@ const ProgressTracker = ({
                   theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'
                 }`}>
                   Buen progreso, sigue así
-                </span>
-              </>
-            ) : shouldShowLowCommitment ? (
-              <>
-                <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span className={`text-sm font-semibold ${
-                  theme === 'dark' ? 'text-red-300' : 'text-red-700'
-                }`}>
-                  Necesita más compromiso
                 </span>
               </>
             ) : null}

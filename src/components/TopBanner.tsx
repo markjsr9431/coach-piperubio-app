@@ -204,7 +204,7 @@ const TopBanner = () => {
             </svg>
           </button>
         )}
-        <div className={`${!isHomePage ? 'flex-1' : 'flex-1'} text-center sm:text-left transition-all duration-300 ${
+        <div className={`${!isHomePage ? 'flex-1' : 'flex-1'} text-center transition-all duration-300 ${
           !isHomePage && isScrolled ? 'hidden sm:block' : ''
         }`}>
           <motion.h2 
@@ -219,12 +219,12 @@ const TopBanner = () => {
           >
             {isViewingClient && clientName ? clientName : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
           </motion.h2>
-          {/* Fecha actual */}
+          {/* Fecha actual - Centrada */}
           <motion.p 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.25, duration: 0.5 }}
-            className={`font-semibold transition-all duration-300 ${
+            className={`font-semibold transition-all duration-300 text-center ${
               !isHomePage
                 ? (isScrolled ? 'text-xs sm:text-sm' : 'text-xs sm:text-base')
                 : (isScrolled ? 'text-xs sm:text-base' : 'text-sm sm:text-lg')

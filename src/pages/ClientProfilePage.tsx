@@ -3,12 +3,10 @@ import { motion } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
-import { db, storage, auth } from '../firebaseConfig'
+import { db, auth } from '../firebaseConfig'
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { updateProfile } from 'firebase/auth'
 import TopBanner from '../components/TopBanner'
-import AvatarSelector from '../components/AvatarSelector'
 import RMAndPRSection from '../components/RMAndPRSection'
 
 const ClientProfilePage = () => {
@@ -28,12 +26,10 @@ const ClientProfilePage = () => {
     cedula: '',
     rh: '',
     eps: '',
-    profilePhoto: null as string | null,
-    avatar: null as string | null,
-    gender: null as 'male' | 'female' | null
+    profilePhoto: null as string | null
   })
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Cargar datos del cliente
@@ -57,11 +53,10 @@ const ClientProfilePage = () => {
             cedula: data.cedula || '',
             rh: data.rh || '',
             eps: data.eps || '',
-            profilePhoto: data.profilePhoto || null,
-            avatar: data.avatar || null,
-            gender: data.gender || null
+            profilePhoto: data.profilePhoto || null
           })
           if (data.profilePhoto) {
+            // Si es base64 (empieza con data:image) o URL
             setPhotoPreview(data.profilePhoto)
           }
         }
@@ -76,8 +71,8 @@ const ClientProfilePage = () => {
     loadClientData()
   }, [clientId, isCoach])
 
-  // Función para redimensionar imagen a 128x128 a 72ppp con límite de tamaño
-  const resizeImage = (file: File): Promise<Blob> => {
+  // Función para redimensionar imagen y convertir a base64 (para Firestore)
+  const resizeImageToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       // Validar tamaño antes de procesar (máximo 5MB)
       if (file.size > 5 * 1024 * 1024) {
@@ -118,28 +113,22 @@ const ClientProfilePage = () => {
           // Dibujar imagen redimensionada
           ctx.drawImage(img, 0, 0, width, height)
           
-          // Convertir a blob con calidad reducida (72ppp equivalente)
-          // Intentar diferentes niveles de calidad hasta que el tamaño sea aceptable
+          // Convertir a base64 con calidad reducida
+          // Intentar diferentes niveles de calidad hasta que el tamaño sea aceptable (máximo 800KB para Firestore)
           let quality = 0.7
-          const maxSize = 100 * 1024 // 100KB máximo
+          const maxSize = 800 * 1024 // 800KB máximo (Firestore permite hasta 1MB)
           
           const tryCompress = (q: number) => {
-            canvas.toBlob(
-              (blob) => {
-                if (blob) {
-                  if (blob.size > maxSize && q > 0.3) {
-                    // Reducir calidad si el tamaño es muy grande
-                    tryCompress(q - 0.1)
-                  } else {
-                    resolve(blob)
-                  }
-                } else {
-                  reject(new Error('Error al convertir la imagen'))
-                }
-              },
-              'image/jpeg',
-              q
-            )
+            const base64 = canvas.toDataURL('image/jpeg', q)
+            // Calcular tamaño aproximado (base64 es ~33% más grande que el binario)
+            const size = (base64.length * 3) / 4
+            
+            if (size > maxSize && q > 0.3) {
+              // Reducir calidad si el tamaño es muy grande
+              tryCompress(q - 0.1)
+            } else {
+              resolve(base64)
+            }
           }
           
           tryCompress(quality)
@@ -172,20 +161,12 @@ const ClientProfilePage = () => {
 
     try {
       setError(null)
-      // Redimensionar imagen
-      const resizedBlob = await resizeImage(file)
+      // Redimensionar imagen y convertir a base64
+      const base64 = await resizeImageToBase64(file)
       
-      // Crear preview
-      const previewUrl = URL.createObjectURL(resizedBlob)
-      setPhotoPreview(previewUrl)
-      
-      // Crear File desde Blob con nombre y tipo correctos
-      const fileName = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
-      const photoFile = new File([resizedBlob], fileName, { 
-        type: 'image/jpeg',
-        lastModified: Date.now()
-      })
-      setPhotoFile(photoFile)
+      // Usar base64 directamente como preview
+      setPhotoPreview(base64)
+      setPhotoBase64(base64)
     } catch (error: any) {
       console.error('Error processing image:', error)
       setError(error.message || 'Error al procesar la imagen')
@@ -207,42 +188,11 @@ const ClientProfilePage = () => {
     try {
       let photoUrl = formData.profilePhoto
 
-      // Subir foto si hay una nueva
-      if (photoFile) {
-        try {
-          // Eliminar foto anterior si existe (usar la ruta del storage, no la URL completa)
-          if (formData.profilePhoto && formData.profilePhoto.includes(`clients/${clientId}/profile`)) {
-            try {
-              const oldPhotoRef = ref(storage, `clients/${clientId}/profile.jpg`)
-              await deleteObject(oldPhotoRef)
-            } catch (deleteError) {
-              console.warn('Error deleting old photo:', deleteError)
-              // Continuar aunque falle la eliminación
-            }
-          }
-
-          // Subir nueva foto
-          const photoRef = ref(storage, `clients/${clientId}/profile.jpg`)
-          
-          // Asegurarse de que photoFile es un Blob o File válido
-          if (!photoFile) {
-            throw new Error('El archivo de foto no es válido')
-          }
-          
-          // Verificar que es un File o Blob usando verificación de tipo segura
-          const fileToUpload: File | Blob = photoFile as File | Blob
-          if (!(fileToUpload instanceof File || fileToUpload instanceof Blob)) {
-            throw new Error('El archivo de foto no es válido')
-          }
-          
-          await uploadBytes(photoRef, fileToUpload)
-          photoUrl = await getDownloadURL(photoRef)
-          
-          console.log('Foto subida exitosamente:', photoUrl)
-        } catch (uploadError: any) {
-          console.error('Error uploading photo:', uploadError)
-          throw new Error(`Error al subir la foto: ${uploadError.message || 'Error desconocido'}`)
-        }
+      // Guardar foto como base64 si hay una nueva
+      if (photoBase64) {
+        // Guardar directamente como base64 en Firestore
+        photoUrl = photoBase64
+        console.log('Foto procesada exitosamente (base64)')
       }
 
       // Actualizar datos en Firestore
@@ -261,8 +211,6 @@ const ClientProfilePage = () => {
           rh: formData.rh.trim() || null,
           eps: formData.eps.trim() || null,
           profilePhoto: photoUrl || null,
-          avatar: formData.avatar || null,
-          gender: formData.gender || null,
           updatedAt: serverTimestamp(),
           updatedBy: user?.email || ''
         })
@@ -298,7 +246,7 @@ const ClientProfilePage = () => {
 
       // Actualizar estado local
       setFormData(prev => ({ ...prev, profilePhoto: photoUrl }))
-      setPhotoFile(null)
+      setPhotoBase64(null)
       
       alert('Información del cliente actualizada correctamente')
     } catch (error: any) {
@@ -311,7 +259,7 @@ const ClientProfilePage = () => {
 
   const handleRemovePhoto = () => {
     setPhotoPreview(null)
-    setPhotoFile(null)
+    setPhotoBase64(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -389,37 +337,13 @@ const ClientProfilePage = () => {
               ? 'bg-slate-800/80 border border-slate-700' 
               : 'bg-white border border-gray-200'
           }`}>
-            {/* Avatar o Foto de Perfil */}
+            {/* Foto de Perfil */}
             <div className="mb-6">
               <label className={`block text-sm font-semibold mb-3 ${
                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
               }`}>
-                Avatar o Fotografía de Perfil
+                Fotografía de Perfil
               </label>
-              
-              {/* Selector de Avatar */}
-              <div className="mb-4">
-                <AvatarSelector
-                  selectedAvatar={formData.avatar}
-                  onSelect={(avatar) => setFormData(prev => ({ ...prev, avatar, profilePhoto: null }))}
-                  gender={formData.gender}
-                  onGenderChange={(gender) => setFormData(prev => ({ ...prev, gender, avatar: null }))}
-                />
-              </div>
-
-              {/* Vista previa del avatar seleccionado */}
-              {formData.avatar && (
-                <div className="mb-4 flex items-center gap-4">
-                  <div className="text-6xl">{formData.avatar}</div>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, avatar: null }))}
-                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-                  >
-                    Eliminar Avatar
-                  </button>
-                </div>
-              )}
 
               {/* Opción de subir foto (opcional) */}
               <div className="mt-4">
@@ -470,14 +394,13 @@ const ClientProfilePage = () => {
                   <label
                     htmlFor="photo-upload"
                     className="inline-block px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors cursor-pointer"
-                    onClick={() => setFormData(prev => ({ ...prev, avatar: null }))}
                   >
                     {photoPreview ? 'Cambiar Foto' : 'Subir Foto'}
                   </label>
                   <p className={`text-xs mt-2 ${
                     theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                   }`}>
-                    Máximo 128x128 píxeles a 72ppp. La imagen se redimensionará automáticamente.
+                    Máximo 128x128 píxeles. La imagen se redimensionará y comprimirá automáticamente (máximo 5MB original).
                   </p>
                 </div>
                 </div>
@@ -619,6 +542,24 @@ const ClientProfilePage = () => {
             {clientId && (
               <div className="mt-8">
                 <RMAndPRSection clientId={clientId} isCoach={isCoach} />
+              </div>
+            )}
+
+            {/* Botón para ver gráficas de progreso - Solo para coach */}
+            {clientId && isCoach && (
+              <div className="mt-6">
+                <button
+                  onClick={() => {
+                    // TODO: Implementar modal de gráficas
+                    alert('Funcionalidad de gráficas en desarrollo. Mostrará progreso de RM, PR y peso corporal por semana, mes y año.')
+                  }}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-purple-900 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Ver Gráficas de Progreso
+                </button>
               </div>
             )}
 

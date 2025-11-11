@@ -373,7 +373,7 @@ const ClientWorkoutPage = () => {
                       </h2>
                       
                       {/* Fichas cuadradas lado a lado */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
                         {/* Ficha del entrenamiento */}
                         <motion.div
                           key={currentDayIndex}
@@ -382,7 +382,7 @@ const ClientWorkoutPage = () => {
                           animate="visible"
                           whileHover={!isFeedbackSubmitted ? { scale: 1.05, y: -5 } : {}}
                           whileTap={!isFeedbackSubmitted ? { scale: 0.95 } : {}}
-                          className={`relative rounded-xl p-6 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                          className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
                             isFeedbackSubmitted 
                               ? 'opacity-60 cursor-not-allowed' 
                               : 'hover:shadow-2xl cursor-pointer'
@@ -424,7 +424,7 @@ const ClientWorkoutPage = () => {
                             animate="visible"
                             whileHover={{ scale: 1.05, y: -5 }}
                             whileTap={{ scale: 0.95 }}
-                            className={`relative rounded-xl p-6 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                            className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
                               theme === 'dark'
                                 ? 'bg-slate-700 hover:bg-slate-600'
                                 : 'bg-white hover:bg-gray-100 border border-gray-300'

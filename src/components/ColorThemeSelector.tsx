@@ -171,7 +171,7 @@ const ColorThemeSelector = ({ isOpen, onClose }: ColorThemeSelectorProps) => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className={`relative w-full max-w-md rounded-xl shadow-2xl ${
+          className={`relative w-full max-w-md rounded-xl shadow-2xl mx-auto my-auto ${
             theme === 'dark' ? 'bg-slate-800' : 'bg-white'
           }`}
         >
