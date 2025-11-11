@@ -14,6 +14,7 @@ import TimerFloating from '../components/TimerFloating'
 import WorkoutComplete from '../components/WorkoutComplete'
 import ProgressBar from '../components/ProgressBar'
 import TopBanner from '../components/TopBanner'
+import DailyFeedback from '../components/DailyFeedback'
 
 const WorkoutPage = () => {
   const { day, clientId } = useParams<{ day: string; clientId?: string }>()
@@ -459,6 +460,19 @@ const WorkoutPage = () => {
             </motion.div>
           ))}
         </div>
+
+        {/* Retroalimentación del Día - Solo para clientes */}
+        {!isCoach && clientId && (
+          <DailyFeedback
+            day={workout.day}
+            dayIndex={dayIndex}
+            clientId={clientId}
+            onSubmit={() => {
+              // Navegar al home del perfil de usuario
+              navigate(`/client/${clientId}/workouts`)
+            }}
+          />
+        )}
 
         {/* Navigation */}
         <div className="flex justify-between mt-8 gap-4">

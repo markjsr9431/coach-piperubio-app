@@ -219,6 +219,35 @@ const TopBanner = () => {
           >
             {isViewingClient && clientName ? clientName : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
           </motion.h2>
+          {/* Fecha actual */}
+          <motion.p 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.25, duration: 0.5 }}
+            className={`font-semibold transition-all duration-300 ${
+              !isHomePage
+                ? (isScrolled ? 'text-xs sm:text-sm' : 'text-xs sm:text-base')
+                : (isScrolled ? 'text-xs sm:text-base' : 'text-sm sm:text-lg')
+            } text-white/90`}
+          >
+            {(() => {
+              const today = new Date()
+              const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+              const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+              const dayName = days[today.getDay()]
+              const day = today.getDate()
+              const month = months[today.getMonth()]
+              const year = today.getFullYear()
+              
+              // En móviles mostrar formato corto, en desktop mostrar completo
+              return (
+                <>
+                  <span className="sm:hidden">{dayName} {day} {month}</span>
+                  <span className="hidden sm:inline">{dayName} {day} {month} {year}</span>
+                </>
+              )
+            })()}
+          </motion.p>
           {/* Solo mostrar "Gestión de Cliente" si es el coach viendo un cliente */}
           {isViewingClient && clientName && isCoach && (
             <motion.p 

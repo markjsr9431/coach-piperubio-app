@@ -10,6 +10,7 @@ import { collection, getDocs, doc, deleteDoc, getDoc } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 import ProgressTracker from '../components/ProgressTracker'
+import RMAndPRModal from '../components/RMAndPRModal'
 
 const ClientWorkoutPage = () => {
   const navigate = useNavigate()
@@ -31,6 +32,7 @@ const ClientWorkoutPage = () => {
     totalDays: number
   } | null>(null)
   const [currentDayIndex, setCurrentDayIndex] = useState<number | null>(null)
+  const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
 
   // Calcular el día actual según la fecha
   useEffect(() => {
@@ -251,7 +253,22 @@ const ClientWorkoutPage = () => {
       <TopBanner />
       
       {/* Espacio para el banner fijo */}
-      <div className="h-40 sm:h-48"></div>
+      <div className="h-28 sm:h-32"></div>
+
+      {/* Barra de Progreso del Cliente - Debajo del banner */}
+      {!isCoach && clientProgress && (
+        <div className="px-4 sm:px-6 lg:px-8 pb-6">
+          <div className="max-w-4xl mx-auto">
+            <ProgressTracker
+              dailyProgress={0}
+              monthlyProgress={clientProgress.monthlyProgress}
+              completedDays={clientProgress.completedDays}
+              totalDays={clientProgress.totalDays}
+              showDetails={true}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Contenido Principal */}
       <div className="pt-8 pb-12 px-4 sm:px-6 lg:px-8 relative">
@@ -268,19 +285,6 @@ const ClientWorkoutPage = () => {
             <p className={`text-xl ${
               theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
             }`}>{t('workout.interactive')}</p>
-            
-            {/* Barra de Progreso del Cliente */}
-            {clientProgress && (
-              <div className="max-w-2xl mx-auto mt-6">
-                <ProgressTracker
-                  dailyProgress={0}
-                  monthlyProgress={clientProgress.monthlyProgress}
-                  completedDays={clientProgress.completedDays}
-                  totalDays={clientProgress.totalDays}
-                  showDetails={true}
-                />
-              </div>
-            )}
             
             {/* Botones de gestión - Solo para coach */}
             {isCoach && (
@@ -343,7 +347,7 @@ const ClientWorkoutPage = () => {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className={isCoach ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" : "flex justify-center"}
+            className={isCoach ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" : "flex justify-center w-full"}
           >
             {/* Para clientes, mostrar solo el día actual */}
             {!isCoach ? (
@@ -352,38 +356,102 @@ const ClientWorkoutPage = () => {
                   const workout = clientWorkouts[currentDayIndex]
                   const dayName = workout.day.split(' - ')[1]?.split(' (')[0]
                   const isSaturday = dayName === 'Sábado'
+                  
+                  // Verificar si ya se envió retroalimentación para este día
+                  const feedbackSubmittedKey = clientId 
+                    ? `feedback_submitted_${clientId}_day_${currentDayIndex + 1}`
+                    : `feedback_submitted_day_${currentDayIndex + 1}`
+                  const isFeedbackSubmitted = localStorage.getItem(feedbackSubmittedKey) === 'true'
+                  
                   return (
-                    <motion.div
-                      key={currentDayIndex}
-                      variants={cardVariants}
-                      initial="hidden"
-                      animate="visible"
-                      whileHover={{ scale: 1.05, y: -5 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="relative rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all bg-gradient-to-br from-primary-600 to-primary-800 max-w-sm w-full"
-                    >
-                      <div
-                        onClick={() => handleDayClick(currentDayIndex)}
-                        className="cursor-pointer"
-                      >
-                        <div className="text-center">
-                          <div className="text-3xl font-bold text-white mb-2">
-                            {currentDayIndex + 1}
-                          </div>
-                          <div className="text-white font-semibold text-lg">
-                            {workout.day.split(' - ')[1]?.replace(' (Opcional)', '')}
-                          </div>
-                          {isSaturday && (
-                            <div className="text-yellow-300 text-xs font-semibold mt-1">
-                              (Opcional)
+                    <div className="max-w-4xl mx-auto">
+                      {/* Título */}
+                      <h2 className={`text-2xl font-bold mb-6 text-center ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        Entreno del día
+                      </h2>
+                      
+                      {/* Fichas cuadradas lado a lado */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Ficha del entrenamiento */}
+                        <motion.div
+                          key={currentDayIndex}
+                          variants={cardVariants}
+                          initial="hidden"
+                          animate="visible"
+                          whileHover={!isFeedbackSubmitted ? { scale: 1.05, y: -5 } : {}}
+                          whileTap={!isFeedbackSubmitted ? { scale: 0.95 } : {}}
+                          className={`relative rounded-xl p-6 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                            isFeedbackSubmitted 
+                              ? 'opacity-60 cursor-not-allowed' 
+                              : 'hover:shadow-2xl cursor-pointer'
+                          }`}
+                        >
+                          <div
+                            onClick={() => !isFeedbackSubmitted && handleDayClick(currentDayIndex)}
+                            className={isFeedbackSubmitted ? 'cursor-not-allowed' : 'cursor-pointer w-full h-full flex flex-col items-center justify-center'}
+                          >
+                            <div className="text-center">
+                              <div className="text-5xl font-bold text-white mb-3">
+                                {currentDayIndex + 1}
+                              </div>
+                              <div className="text-white font-semibold text-xl mb-2">
+                                {workout.day.split(' - ')[1]?.replace(' (Opcional)', '')}
+                              </div>
+                              {isSaturday && (
+                                <div className="text-yellow-300 text-sm font-semibold mb-2">
+                                  (Opcional)
+                                </div>
+                              )}
+                              <div className="text-primary-100 text-base mt-3">
+                                {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
+                              </div>
+                              {isFeedbackSubmitted && (
+                                <div className="text-green-300 text-sm font-semibold mt-3">
+                                  ✓ Retroalimentación enviada
+                                </div>
+                              )}
                             </div>
-                          )}
-                          <div className="text-primary-100 text-sm mt-2">
-                            {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
                           </div>
-                        </div>
+                        </motion.div>
+                        
+                        {/* Ficha RM y PR */}
+                        {clientId && (
+                          <motion.div
+                            variants={cardVariants}
+                            initial="hidden"
+                            animate="visible"
+                            whileHover={{ scale: 1.05, y: -5 }}
+                            whileTap={{ scale: 0.95 }}
+                            className={`relative rounded-xl p-6 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                              theme === 'dark'
+                                ? 'bg-slate-700 hover:bg-slate-600'
+                                : 'bg-white hover:bg-gray-100 border border-gray-300'
+                            }`}
+                            onClick={() => setShowRMAndPRModal(true)}
+                          >
+                            <div className="text-center">
+                              <div className={`text-5xl font-bold mb-3 ${
+                                theme === 'dark' ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                RM
+                              </div>
+                              <div className={`text-2xl font-semibold mb-2 ${
+                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                              }`}>
+                                y
+                              </div>
+                              <div className={`text-5xl font-bold ${
+                                theme === 'dark' ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                PR
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
                       </div>
-                    </motion.div>
+                    </div>
                   )
                 })()
               ) : (
@@ -529,7 +597,8 @@ const ClientWorkoutPage = () => {
                   {/* Texto optimizado */}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold leading-relaxed break-words">
-                      {t('alert.title')} {t('alert.text1')}
+                      <span className="hidden sm:inline">{t('alert.title')} {t('alert.text1')}</span>
+                      <span className="sm:hidden">Dolor o molestia: revisa alternativas. Para peso, escríbeme.</span>
                     </p>
                   </div>
                 </div>
@@ -548,6 +617,16 @@ const ClientWorkoutPage = () => {
           dayIndex={editingDayIndex}
           initialWorkout={clientWorkouts[editingDayIndex]}
           onSave={handleWorkoutSaved}
+        />
+      )}
+
+      {/* RM and PR Modal */}
+      {clientId && (
+        <RMAndPRModal
+          isOpen={showRMAndPRModal}
+          onClose={() => setShowRMAndPRModal(false)}
+          clientId={clientId}
+          isCoach={isCoach}
         />
       )}
     </div>

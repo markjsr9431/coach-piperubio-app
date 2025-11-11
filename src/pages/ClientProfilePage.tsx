@@ -9,6 +9,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { updateProfile } from 'firebase/auth'
 import TopBanner from '../components/TopBanner'
 import AvatarSelector from '../components/AvatarSelector'
+import RMAndPRSection from '../components/RMAndPRSection'
 
 const ClientProfilePage = () => {
   const navigate = useNavigate()
@@ -224,11 +225,17 @@ const ClientProfilePage = () => {
           const photoRef = ref(storage, `clients/${clientId}/profile.jpg`)
           
           // Asegurarse de que photoFile es un Blob o File válido
-          if (!photoFile || !(photoFile instanceof File || photoFile instanceof Blob)) {
+          if (!photoFile) {
             throw new Error('El archivo de foto no es válido')
           }
           
-          await uploadBytes(photoRef, photoFile)
+          // Verificar que es un File o Blob usando verificación de tipo segura
+          const fileToUpload: File | Blob = photoFile as File | Blob
+          if (!(fileToUpload instanceof File || fileToUpload instanceof Blob)) {
+            throw new Error('El archivo de foto no es válido')
+          }
+          
+          await uploadBytes(photoRef, fileToUpload)
           photoUrl = await getDownloadURL(photoRef)
           
           console.log('Foto subida exitosamente:', photoUrl)
@@ -607,6 +614,13 @@ const ClientProfilePage = () => {
                 />
               </div>
             </div>
+
+            {/* Sección RM y PR */}
+            {clientId && (
+              <div className="mt-8">
+                <RMAndPRSection clientId={clientId} isCoach={isCoach} />
+              </div>
+            )}
 
             {/* Error */}
             {error && (

@@ -19,6 +19,14 @@ const colorSchemes = [
   { name: 'Rojo', value: 'red', colors: { primary: '#dc2626', secondary: '#b91c1c' } },
   { name: 'Amarillo', value: 'yellow', colors: { primary: '#ca8a04', secondary: '#a16207' } },
   { name: 'Cian', value: 'cyan', colors: { primary: '#0891b2', secondary: '#0e7490' } },
+  { name: 'Índigo', value: 'indigo', colors: { primary: '#4f46e5', secondary: '#4338ca' } },
+  { name: 'Esmeralda', value: 'emerald', colors: { primary: '#10b981', secondary: '#059669' } },
+  { name: 'Teal', value: 'teal', colors: { primary: '#14b8a6', secondary: '#0d9488' } },
+  { name: 'Violeta', value: 'violet', colors: { primary: '#8b5cf6', secondary: '#7c3aed' } },
+  { name: 'Fucsia', value: 'fuchsia', colors: { primary: '#d946ef', secondary: '#c026d3' } },
+  { name: 'Ámbar', value: 'amber', colors: { primary: '#f59e0b', secondary: '#d97706' } },
+  { name: 'Lima', value: 'lime', colors: { primary: '#84cc16', secondary: '#65a30d' } },
+  { name: 'Verde Azulado', value: 'sky', colors: { primary: '#0ea5e9', secondary: '#0284c7' } },
 ]
 
 const ColorThemeSelector = ({ isOpen, onClose }: ColorThemeSelectorProps) => {
@@ -196,7 +204,7 @@ const ColorThemeSelector = ({ isOpen, onClose }: ColorThemeSelectorProps) => {
                 Selecciona un esquema de colores para personalizar tu perfil
               </p>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-3 max-h-96 overflow-y-auto">
                 {colorSchemes.map((scheme) => (
                   <button
                     key={scheme.value}
