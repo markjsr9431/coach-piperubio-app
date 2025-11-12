@@ -16,8 +16,8 @@ const ProgressTracker = ({
   completedDays,
   totalDays,
   showDetails = false,
-  createdAt,
-  lastLogin
+  createdAt: _createdAt,
+  lastLogin: _lastLogin
 }: ProgressTrackerProps) => {
   const { theme } = useTheme()
 
