@@ -37,7 +37,7 @@ const ProgressTracker = ({
   }
 
   // Solo mostrar "Necesita más compromiso" si no es usuario nuevo Y no ha iniciado sesión recientemente
-  const shouldShowLowCommitment = !isNewUser() && hasNotLoggedInRecently()
+  // const shouldShowLowCommitment = !isNewUser() && hasNotLoggedInRecently()
 
   return (
     <div className={`rounded-lg p-4 ${

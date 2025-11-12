@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 
 interface ProgressData {

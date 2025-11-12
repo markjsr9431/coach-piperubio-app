@@ -6,7 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
-import { collection, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 import ProgressTracker from '../components/ProgressTracker'
@@ -290,15 +290,15 @@ const ClientWorkoutPage = () => {
       
       if (summaryDoc.exists()) {
         const summaryData = summaryDoc.data()
-        const dailyProgress = summaryData.dailyProgress || {}
+        // const dailyProgress = summaryData.dailyProgress || {}
         
         // Remover el día del dailyProgress
-        const today = new Date().toISOString().split('T')[0]
+        // const today = new Date().toISOString().split('T')[0]
         // Buscar y eliminar cualquier entrada que corresponda a este día
         // Necesitamos buscar por fecha de completado, pero como no tenemos esa info aquí,
         // eliminaremos todas las entradas y recalcularemos
         const updatedDailyProgress: { [key: string]: boolean } = {}
-        let hasChanges = false
+        // let hasChanges = false
         
         // Recalcular dailyProgress basado en los documentos de progreso existentes
         for (let i = 0; i < 30; i++) {
