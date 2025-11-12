@@ -22,19 +22,19 @@ const ProgressTracker = ({
   const { theme } = useTheme()
 
   // Determinar si el usuario es nuevo (creado hace menos de 2 semanas) o no ha iniciado sesión en 7 días
-  const isNewUser = () => {
-    if (!createdAt) return false
-    const createdDate = createdAt.toDate ? createdAt.toDate() : new Date(createdAt)
-    const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
-    return daysSinceCreation < 14 // 2 semanas
-  }
+  // const isNewUser = () => {
+  //   if (!createdAt) return false
+  //   const createdDate = createdAt.toDate ? createdAt.toDate() : new Date(createdAt)
+  //   const daysSinceCreation = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
+  //   return daysSinceCreation < 14 // 2 semanas
+  // }
 
-  const hasNotLoggedInRecently = () => {
-    if (!lastLogin) return true // Si no hay registro de login, considerar que no ha iniciado sesión
-    const lastLoginDate = lastLogin.toDate ? lastLogin.toDate() : new Date(lastLogin)
-    const daysSinceLastLogin = (Date.now() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24)
-    return daysSinceLastLogin >= 7
-  }
+  // const hasNotLoggedInRecently = () => {
+  //   if (!lastLogin) return true // Si no hay registro de login, considerar que no ha iniciado sesión
+  //   const lastLoginDate = lastLogin.toDate ? lastLogin.toDate() : new Date(lastLogin)
+  //   const daysSinceLastLogin = (Date.now() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24)
+  //   return daysSinceLastLogin >= 7
+  // }
 
   // Solo mostrar "Necesita más compromiso" si no es usuario nuevo Y no ha iniciado sesión recientemente
   // const shouldShowLowCommitment = !isNewUser() && hasNotLoggedInRecently()

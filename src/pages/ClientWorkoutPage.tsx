@@ -289,7 +289,7 @@ const ClientWorkoutPage = () => {
       const summaryDoc = await getDoc(summaryRef)
       
       if (summaryDoc.exists()) {
-        const summaryData = summaryDoc.data()
+        // const summaryData = summaryDoc.data()
         // const dailyProgress = summaryData.dailyProgress || {}
         
         // Remover el día del dailyProgress
