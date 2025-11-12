@@ -8,7 +8,6 @@ import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import ExerciseItem from '../components/ExerciseItem'
-import VideoModal from '../components/VideoModal'
 import TimerModal from '../components/TimerModal'
 import TimerFloating from '../components/TimerFloating'
 import WorkoutComplete from '../components/WorkoutComplete'
@@ -38,12 +37,11 @@ const WorkoutPage = () => {
   
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set())
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null)
   const [showTimer, setShowTimer] = useState(false)
   const [isTimerMinimized, setIsTimerMinimized] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
   const [lastCompletedCount, setLastCompletedCount] = useState(0)
-  const [hasShownComplete, setHasShownComplete] = useState(false)
+  const hasShownCompleteRef = useRef(false)
   const [dayProgress, setDayProgress] = useState<{ progress: number; completedExercises: Set<string> } | null>(null)
   
   // Timer para tracking de tiempo de entrenamiento
@@ -100,14 +98,16 @@ const WorkoutPage = () => {
               setDayProgress({ progress: 100, completedExercises: completedSet })
               // Establecer lastCompletedCount al total para evitar que se muestre el modal al cargar un día ya completo
               setLastCompletedCount(completedSet.size)
-              setHasShownComplete(true) // Marcar que ya se mostró (o no debe mostrarse porque ya estaba completo)
+              hasShownCompleteRef.current = true // Marcar que ya se mostró (o no debe mostrarse porque ya estaba completo)
             } else {
               setDayProgress({ progress: savedProgress, completedExercises: new Set() })
               setLastCompletedCount(0)
             }
           } else {
             setDayProgress(null)
+            setCompletedExercises(new Set())
             setLastCompletedCount(0)
+            hasShownCompleteRef.current = false
           }
         } catch (error) {
           console.error('Error loading workout:', error)
@@ -133,7 +133,7 @@ const WorkoutPage = () => {
     }
     // Reset completion state when day changes
     setShowComplete(false)
-    setHasShownComplete(false)
+    hasShownCompleteRef.current = false
     // No resetear lastCompletedCount aquí, se establecerá cuando se cargue el progreso
     
     // Iniciar timer de entrenamiento cuando se carga la página (solo para clientes y si el día no está completo)
@@ -148,11 +148,12 @@ const WorkoutPage = () => {
     }
   }, [day, workout, clientId, isCoach, isDayCompleted])
 
-  // Guardar progreso en Firestore cuando cambia
+  // Guardar progreso en Firestore cuando cambia (con debounce para optimizar)
   useEffect(() => {
-    const saveProgress = async () => {
-      if (!clientId || !workout) return
-
+    if (!clientId || !workout) return
+    
+    // Debounce: esperar 1 segundo antes de guardar para evitar múltiples escrituras
+    const timeoutId = setTimeout(async () => {
       try {
         const progressRef = doc(db, 'clients', clientId, 'progress', `day-${dayIndex + 1}`)
         const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
@@ -236,10 +237,8 @@ const WorkoutPage = () => {
       } catch (error) {
         console.error('Error saving progress:', error)
       }
-    }
-
-    // Debounce para no guardar en cada cambio
-    const timeoutId = setTimeout(saveProgress, 1000)
+    }, 1000)
+    
     return () => clearTimeout(timeoutId)
   }, [clientId, dayIndex, completedExercises.size, totalExercises, workout])
 
@@ -253,13 +252,14 @@ const WorkoutPage = () => {
     const currentCompletedCount = completedExercises.size
     
     // Si todos los ejercicios están completados y no se ha mostrado el mensaje aún
-    if (isWorkoutComplete && totalExercises > 0 && !hasShownComplete) {
+    if (isWorkoutComplete && totalExercises > 0 && !hasShownCompleteRef.current) {
       // Verificar que acabamos de completar todos (el conteo anterior era menor)
       if (currentCompletedCount === totalExercises && lastCompletedCount < totalExercises) {
+        // Marcar como mostrado inmediatamente para evitar múltiples disparos
+        hasShownCompleteRef.current = true
         // Pequeño delay para mejor UX
         setTimeout(() => {
           setShowComplete(true)
-          setHasShownComplete(true)
         }, 500)
       }
     }
@@ -272,9 +272,9 @@ const WorkoutPage = () => {
     // Si el usuario desmarca un ejercicio (ya no está completo), ocultar la alerta si está visible
     if (!isWorkoutComplete && showComplete) {
       setShowComplete(false)
-      setHasShownComplete(false)
+      hasShownCompleteRef.current = false
     }
-  }, [isWorkoutComplete, completedExercises.size, totalExercises, lastCompletedCount, showComplete, hasShownComplete, isCoach])
+  }, [isWorkoutComplete, completedExercises.size, totalExercises, lastCompletedCount, showComplete, isCoach])
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => {
@@ -504,12 +504,6 @@ const WorkoutPage = () => {
       </div>
 
       {/* Video Modal */}
-      {selectedVideo && (
-        <VideoModal
-          videoUrl={selectedVideo}
-          onClose={() => setSelectedVideo(null)}
-        />
-      )}
 
       {/* Timer Modal - Solo visible para clientes */}
       {!isCoach && (
@@ -559,7 +553,10 @@ const WorkoutPage = () => {
 
       {/* Animación de Entrenamiento Finalizado - Solo para clientes */}
       {showComplete && !isCoach && (
-        <WorkoutComplete onClose={() => setShowComplete(false)} />
+        <WorkoutComplete onClose={() => {
+          setShowComplete(false)
+          // No resetear el ref aquí para evitar que se muestre de nuevo si el entrenamiento sigue completo
+        }} />
       )}
     </div>
   )

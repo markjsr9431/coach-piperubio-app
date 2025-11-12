@@ -117,7 +117,7 @@ const AddExerciseModal = ({ isOpen, onClose, onSuccess }: AddExerciseModalProps)
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={handleClose}
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50 backdrop-blur-md"
         />
 
         {/* Modal */}
@@ -125,8 +125,8 @@ const AddExerciseModal = ({ isOpen, onClose, onSuccess }: AddExerciseModalProps)
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
-          className={`relative w-full max-w-md rounded-xl shadow-2xl ${
-            theme === 'dark' ? 'bg-slate-800' : 'bg-white'
+          className={`relative w-full max-w-md rounded-xl shadow-2xl backdrop-blur-sm ${
+            theme === 'dark' ? 'bg-slate-800/90 border border-slate-700/50' : 'bg-white/90 border border-gray-200/50'
           }`}
         >
           <div className="p-6">

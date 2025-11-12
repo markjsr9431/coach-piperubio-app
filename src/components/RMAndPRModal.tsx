@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { db } from '../firebaseConfig'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { compareRMWithOtherClients, comparePRWithOtherClients, ComparisonResult } from '../utils/rmprComparison'
+import RMPRComparisonAlert from './RMPRComparisonAlert'
 
 export interface RMRecord {
   id: string
@@ -38,6 +40,14 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
   const [showRMForm, setShowRMForm] = useState(false)
   const [showPRForm, setShowPRForm] = useState(false)
   const [sendingToCoach, setSendingToCoach] = useState(false)
+  const [showComparisonAlert, setShowComparisonAlert] = useState(false)
+  const [comparisonData, setComparisonData] = useState<{
+    type: 'RM' | 'PR'
+    exercise: string
+    value: string
+    comparisons: ComparisonResult[]
+  } | null>(null)
+  const [pendingSave, setPendingSave] = useState<(() => Promise<void>) | null>(null)
 
   const [rmForm, setRmForm] = useState({
     exercise: '',
@@ -90,12 +100,7 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
     loadData()
   }, [clientId, isOpen])
 
-  const handleAddRM = async () => {
-    if (!rmForm.exercise || !rmForm.weight || !rmForm.implement) {
-      alert('Por favor completa todos los campos')
-      return
-    }
-
+  const saveRM = async () => {
     setSaving(true)
     try {
       const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
@@ -140,12 +145,44 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
     }
   }
 
-  const handleAddPR = async () => {
-    if (!prForm.exercise || !prForm.time || !prForm.implement) {
+  const handleAddRM = async () => {
+    if (!rmForm.exercise || !rmForm.weight || !rmForm.implement) {
       alert('Por favor completa todos los campos')
       return
     }
 
+    // Solo comparar si es un cliente (no el coach)
+    if (!isCoach && isCurrentUser) {
+      try {
+        const comparisons = await compareRMWithOtherClients(clientId, {
+          exercise: rmForm.exercise.trim(),
+          weight: rmForm.weight.trim(),
+          implement: rmForm.implement.trim()
+        })
+
+        if (comparisons.length > 0) {
+          // Mostrar alerta de comparación
+          setComparisonData({
+            type: 'RM',
+            exercise: rmForm.exercise.trim(),
+            value: rmForm.weight.trim(),
+            comparisons
+          })
+          setPendingSave(() => saveRM)
+          setShowComparisonAlert(true)
+          return
+        }
+      } catch (error) {
+        console.error('Error comparing RM:', error)
+        // Continuar con el guardado si hay error en la comparación
+      }
+    }
+
+    // Si no hay comparaciones o es el coach, guardar directamente
+    await saveRM()
+  }
+
+  const savePR = async () => {
     setSaving(true)
     try {
       const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
@@ -188,6 +225,43 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleAddPR = async () => {
+    if (!prForm.exercise || !prForm.time || !prForm.implement) {
+      alert('Por favor completa todos los campos')
+      return
+    }
+
+    // Solo comparar si es un cliente (no el coach)
+    if (!isCoach && isCurrentUser) {
+      try {
+        const comparisons = await comparePRWithOtherClients(clientId, {
+          exercise: prForm.exercise.trim(),
+          time: prForm.time.trim(),
+          implement: prForm.implement.trim()
+        })
+
+        if (comparisons.length > 0) {
+          // Mostrar alerta de comparación
+          setComparisonData({
+            type: 'PR',
+            exercise: prForm.exercise.trim(),
+            value: prForm.time.trim(),
+            comparisons
+          })
+          setPendingSave(() => savePR)
+          setShowComparisonAlert(true)
+          return
+        }
+      } catch (error) {
+        console.error('Error comparing PR:', error)
+        // Continuar con el guardado si hay error en la comparación
+      }
+    }
+
+    // Si no hay comparaciones o es el coach, guardar directamente
+    await savePR()
   }
 
   const handleSendToCoach = async () => {
@@ -247,7 +321,7 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50 backdrop-blur-md"
         />
 
         {/* Modal */}
@@ -255,10 +329,10 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl ${
+          className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl backdrop-blur-sm ${
             theme === 'dark' 
-              ? 'bg-slate-800' 
-              : 'bg-white'
+              ? 'bg-slate-800/90 border border-slate-700/50' 
+              : 'bg-white/90 border border-gray-200/50'
           }`}
         >
           {/* Header */}
@@ -517,6 +591,30 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
           </div>
         </motion.div>
       </div>
+
+      {/* Alerta de comparación RM/PR */}
+      {comparisonData && (
+        <RMPRComparisonAlert
+          isOpen={showComparisonAlert}
+          type={comparisonData.type}
+          exercise={comparisonData.exercise}
+          value={comparisonData.value}
+          comparisons={comparisonData.comparisons}
+          onConfirm={async () => {
+            setShowComparisonAlert(false)
+            if (pendingSave) {
+              await pendingSave()
+              setPendingSave(null)
+              setComparisonData(null)
+            }
+          }}
+          onCancel={() => {
+            setShowComparisonAlert(false)
+            setPendingSave(null)
+            setComparisonData(null)
+          }}
+        />
+      )}
     </AnimatePresence>
   )
 }

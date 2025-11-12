@@ -66,7 +66,17 @@ exports.createClient = functions.https.onCall(async (data, context) => {
     };
   } catch (error) {
     console.error('Error creating client:', error);
-    throw new functions.https.HttpsError('internal', 'Error al crear cliente: ' + error.message);
+    // Proporcionar más detalles del error
+    const errorMessage = error.message || 'Error desconocido';
+    const errorCode = error.code || 'unknown';
+    console.error('Error details:', { code: errorCode, message: errorMessage, stack: error.stack });
+    
+    // Si es un error de email duplicado, lanzar error específico
+    if (errorCode === 'auth/email-already-exists' || errorMessage.includes('email already exists')) {
+      throw new functions.https.HttpsError('already-exists', 'El email ya está registrado');
+    }
+    
+    throw new functions.https.HttpsError('internal', `Error al crear cliente: ${errorMessage}`);
   }
 });
 

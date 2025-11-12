@@ -6,7 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
-import { collection, getDocs, doc, deleteDoc, getDoc } from 'firebase/firestore'
+import { collection, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 import ProgressTracker from '../components/ProgressTracker'
@@ -33,6 +33,9 @@ const ClientWorkoutPage = () => {
   } | null>(null)
   const [currentDayIndex, setCurrentDayIndex] = useState<number | null>(null)
   const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
+  const [isWorkoutDaysCollapsed, setIsWorkoutDaysCollapsed] = useState(false)
+  const [workoutDurations, setWorkoutDurations] = useState<{ [dayIndex: number]: number }>({})
+  const [workoutDates, setWorkoutDates] = useState<{ [dayIndex: number]: Date }>({})
 
   // Calcular el día actual según la fecha
   useEffect(() => {
@@ -101,6 +104,47 @@ const ClientWorkoutPage = () => {
         })
 
         setClientWorkouts(updatedWorkouts)
+
+        // Cargar tiempos de entrenamiento y fechas reales para cada día - Optimizado
+        // Cargar todos los documentos de progreso en una sola consulta
+        const durations: { [dayIndex: number]: number } = {}
+        const dates: { [dayIndex: number]: Date } = {}
+        
+        try {
+          const progressCollectionRef = collection(db, 'clients', clientId, 'progress')
+          const progressSnapshot = await getDocs(progressCollectionRef)
+          
+          progressSnapshot.forEach((progressDoc) => {
+            // Ignorar el documento 'summary'
+            if (progressDoc.id === 'summary') return
+            
+            // Extraer el número del día del ID (formato: "day-1", "day-2", etc.)
+            const dayMatch = progressDoc.id.match(/^day-(\d+)$/)
+            if (!dayMatch) return
+            
+            const dayIndex = parseInt(dayMatch[1]) - 1 // Convertir a índice 0-based
+            if (dayIndex < 0 || dayIndex >= 30) return
+            
+            const progressData = progressDoc.data()
+            
+            if (progressData.workoutDuration) {
+              durations[dayIndex] = progressData.workoutDuration
+            }
+            
+            // Obtener fecha real de completado
+            if (progressData.completedAt) {
+              const completedDate = progressData.completedAt?.toDate 
+                ? progressData.completedAt.toDate() 
+                : new Date(progressData.completedAt)
+              dates[dayIndex] = completedDate
+            }
+          })
+        } catch (error) {
+          console.error('Error loading progress data:', error)
+        }
+        
+        setWorkoutDurations(durations)
+        setWorkoutDates(dates)
       } catch (error) {
         console.error('Error loading workouts:', error)
         setClientWorkouts(workouts)
@@ -222,6 +266,100 @@ const ClientWorkoutPage = () => {
     }
   }
 
+  const handleResetDay = async (dayIndex: number) => {
+    if (!clientId) return
+
+    if (!confirm(`¿Estás seguro de que quieres restablecer el día ${dayIndex + 1}? Esto eliminará el progreso completado.`)) {
+      return
+    }
+
+    try {
+      // Eliminar documento de progreso del día
+      const progressRef = doc(db, 'clients', clientId, 'progress', `day-${dayIndex + 1}`)
+      await deleteDoc(progressRef)
+      
+      // Eliminar datos de localStorage relacionados
+      const feedbackKey = `feedback_${clientId}_day_${dayIndex + 1}`
+      const feedbackSubmittedKey = `feedback_submitted_${clientId}_day_${dayIndex + 1}`
+      localStorage.removeItem(feedbackKey)
+      localStorage.removeItem(feedbackSubmittedKey)
+      
+      // Actualizar el documento summary para remover el día del dailyProgress
+      const summaryRef = doc(db, 'clients', clientId, 'progress', 'summary')
+      const summaryDoc = await getDoc(summaryRef)
+      
+      if (summaryDoc.exists()) {
+        const summaryData = summaryDoc.data()
+        const dailyProgress = summaryData.dailyProgress || {}
+        
+        // Remover el día del dailyProgress
+        const today = new Date().toISOString().split('T')[0]
+        // Buscar y eliminar cualquier entrada que corresponda a este día
+        // Necesitamos buscar por fecha de completado, pero como no tenemos esa info aquí,
+        // eliminaremos todas las entradas y recalcularemos
+        const updatedDailyProgress: { [key: string]: boolean } = {}
+        let hasChanges = false
+        
+        // Recalcular dailyProgress basado en los documentos de progreso existentes
+        for (let i = 0; i < 30; i++) {
+          if (i !== dayIndex) {
+            try {
+              const dayProgressRef = doc(db, 'clients', clientId, 'progress', `day-${i + 1}`)
+              const dayProgressDoc = await getDoc(dayProgressRef)
+              if (dayProgressDoc.exists()) {
+                const dayData = dayProgressDoc.data()
+                if (dayData.completedAt) {
+                  const completedDate = dayData.completedAt?.toDate 
+                    ? dayData.completedAt.toDate().toISOString().split('T')[0]
+                    : new Date(dayData.completedAt).toISOString().split('T')[0]
+                  updatedDailyProgress[completedDate] = true
+                }
+              }
+            } catch (error) {
+              // Continuar si hay error
+            }
+          }
+        }
+        
+        // Calcular días completados
+        const completedDays = Object.values(updatedDailyProgress).filter(Boolean).length
+        const totalDays = 30
+        const monthlyProgress = totalDays > 0 ? (completedDays / totalDays) * 100 : 0
+        
+        await updateDoc(summaryRef, {
+          dailyProgress: updatedDailyProgress,
+          completedDays,
+          monthlyProgress,
+          lastUpdated: serverTimestamp()
+        })
+      }
+      
+      // Actualizar estado local
+      setWorkoutDurations(prev => {
+        const updated = { ...prev }
+        delete updated[dayIndex]
+        return updated
+      })
+      
+      alert('Día restablecido exitosamente')
+    } catch (error) {
+      console.error('Error resetting day:', error)
+      alert('Error al restablecer el día')
+    }
+  }
+
+  const formatWorkoutDuration = (seconds: number): string => {
+    if (seconds < 60) {
+      return `${seconds} seg`
+    }
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    if (remainingSeconds === 0) {
+      return `${minutes} min`
+    }
+    return `${minutes} min ${remainingSeconds} seg`
+  }
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -298,6 +436,20 @@ const ClientWorkoutPage = () => {
                   </svg>
                   Información del Cliente
                 </button>
+                <button
+                  onClick={() => setIsWorkoutDaysCollapsed(!isWorkoutDaysCollapsed)}
+                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  <svg 
+                    className={`w-5 h-5 transition-transform ${isWorkoutDaysCollapsed ? '' : 'rotate-180'}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  {isWorkoutDaysCollapsed ? 'Expandir Días' : 'Colapsar Días'}
+                </button>
                 {!selectionMode ? (
                   <button
                     onClick={() => setSelectionMode(true)}
@@ -347,7 +499,7 @@ const ClientWorkoutPage = () => {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
-            className={isCoach ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" : "flex justify-center w-full"}
+            className={isCoach ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" : "w-full max-w-2xl mx-auto"}
           >
             {/* Para clientes, mostrar solo el día actual */}
             {!isCoach ? (
@@ -364,7 +516,7 @@ const ClientWorkoutPage = () => {
                   const isFeedbackSubmitted = localStorage.getItem(feedbackSubmittedKey) === 'true'
                   
                   return (
-                    <div className="max-w-4xl mx-auto">
+                    <div className="w-full">
                       {/* Título */}
                       <h2 className={`text-2xl font-bold mb-6 text-center ${
                         theme === 'dark' ? 'text-white' : 'text-gray-900'
@@ -373,7 +525,7 @@ const ClientWorkoutPage = () => {
                       </h2>
                       
                       {/* Fichas cuadradas lado a lado */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 w-full max-w-2xl mx-auto">
                         {/* Ficha del entrenamiento */}
                         <motion.div
                           key={currentDayIndex}
@@ -382,7 +534,7 @@ const ClientWorkoutPage = () => {
                           animate="visible"
                           whileHover={!isFeedbackSubmitted ? { scale: 1.05, y: -5 } : {}}
                           whileTap={!isFeedbackSubmitted ? { scale: 0.95 } : {}}
-                          className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                          className={`relative rounded-xl p-4 sm:p-6 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
                             isFeedbackSubmitted 
                               ? 'opacity-60 cursor-not-allowed' 
                               : 'hover:shadow-2xl cursor-pointer'
@@ -393,22 +545,22 @@ const ClientWorkoutPage = () => {
                             className={isFeedbackSubmitted ? 'cursor-not-allowed' : 'cursor-pointer w-full h-full flex flex-col items-center justify-center'}
                           >
                             <div className="text-center">
-                              <div className="text-5xl font-bold text-white mb-3">
+                              <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
                                 {currentDayIndex + 1}
                               </div>
-                              <div className="text-white font-semibold text-xl mb-2">
+                              <div className="text-white font-semibold text-base sm:text-lg mb-1">
                                 {workout.day.split(' - ')[1]?.replace(' (Opcional)', '')}
                               </div>
                               {isSaturday && (
-                                <div className="text-yellow-300 text-sm font-semibold mb-2">
+                                <div className="text-yellow-300 text-xs sm:text-sm font-semibold mb-1">
                                   (Opcional)
                                 </div>
                               )}
-                              <div className="text-primary-100 text-base mt-3">
+                              <div className="text-primary-100 text-xs sm:text-sm mt-2">
                                 {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
                               </div>
                               {isFeedbackSubmitted && (
-                                <div className="text-green-300 text-sm font-semibold mt-3">
+                                <div className="text-green-300 text-xs font-semibold mt-2">
                                   ✓ Retroalimentación enviada
                                 </div>
                               )}
@@ -424,7 +576,7 @@ const ClientWorkoutPage = () => {
                             animate="visible"
                             whileHover={{ scale: 1.05, y: -5 }}
                             whileTap={{ scale: 0.95 }}
-                            className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                            className={`relative rounded-xl p-4 sm:p-6 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
                               theme === 'dark'
                                 ? 'bg-slate-700 hover:bg-slate-600'
                                 : 'bg-white hover:bg-gray-100 border border-gray-300'
@@ -432,17 +584,17 @@ const ClientWorkoutPage = () => {
                             onClick={() => setShowRMAndPRModal(true)}
                           >
                             <div className="text-center">
-                              <div className={`text-5xl font-bold mb-3 ${
+                              <div className={`text-3xl sm:text-4xl font-bold mb-2 ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
                               }`}>
                                 RM
                               </div>
-                              <div className={`text-2xl font-semibold mb-2 ${
+                              <div className={`text-lg sm:text-xl font-semibold mb-1 ${
                                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                               }`}>
                                 y
                               </div>
-                              <div className={`text-5xl font-bold ${
+                              <div className={`text-3xl sm:text-4xl font-bold ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
                               }`}>
                                 PR
@@ -472,7 +624,7 @@ const ClientWorkoutPage = () => {
               )
             ) : (
               // Para el coach, mostrar todos los días
-              clientWorkouts.map((workout, index) => {
+              !isWorkoutDaysCollapsed && clientWorkouts.map((workout, index) => {
               const isSelected = selectedDays.has(index)
               return (
                 <motion.div
@@ -507,6 +659,15 @@ const ClientWorkoutPage = () => {
                         <div className="text-white font-semibold text-lg">
                           {workout.day.split(' - ')[1]}
                         </div>
+                        {workoutDates[index] && (
+                          <div className="text-primary-200 text-xs mt-1">
+                            {workoutDates[index].toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric'
+                            })}
+                          </div>
+                        )}
                         <div className="text-primary-100 text-sm mt-2">
                           {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
                         </div>
@@ -520,29 +681,59 @@ const ClientWorkoutPage = () => {
                       >
                         <div className="text-center">
                           <div className="text-3xl font-bold text-white mb-2">
-                            {index + 1}
+                            Día {index + 1}
                           </div>
+                          {workoutDates[index] && (
+                            <div className="text-primary-200 text-xs mb-1">
+                              {workoutDates[index].toLocaleDateString('es-ES', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              })}
+                            </div>
+                          )}
                           <div className="text-white font-semibold text-lg">
                             {workout.day.split(' - ')[1]}
                           </div>
                           <div className="text-primary-100 text-sm mt-2">
                             {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
                           </div>
+                          {workoutDurations[index] && (
+                            <div className="text-primary-200 text-xs mt-1 font-semibold">
+                              ⏱️ {formatWorkoutDuration(workoutDurations[index])}
+                            </div>
+                          )}
                         </div>
                       </div>
                       {isCoach && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEditWorkout(index)
-                          }}
-                          className="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                          title="Editar entrenamiento"
-                        >
-                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
+                        <div className="absolute top-2 right-2 flex gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleEditWorkout(index)
+                            }}
+                            className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                            title="Editar entrenamiento"
+                          >
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          {workoutDurations[index] && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleResetDay(index)
+                              }}
+                              className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
+                              title="Restablecer día"
+                            >
+                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       )}
                     </>
                   )}

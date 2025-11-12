@@ -171,7 +171,7 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-black/50 backdrop-blur-md z-[100]"
           />
           
           {/* Modal */}
@@ -185,9 +185,9 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
           >
             <div className={`w-full max-w-md rounded-2xl shadow-2xl ${
               theme === 'dark' 
-                ? 'bg-slate-800 border border-slate-700' 
-                : 'bg-white border border-gray-200'
-            }`}>
+                ? 'bg-slate-800/90 border border-slate-700/50' 
+                : 'bg-white/90 border border-gray-200/50'
+            } backdrop-blur-sm`}>
               {success ? (
                 <div className="p-6 text-center">
                   <motion.div

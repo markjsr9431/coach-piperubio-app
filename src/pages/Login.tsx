@@ -18,6 +18,12 @@ export default function Login() {
       setLoading(true)
       setError(null)
       await signInWithEmailAndPassword(auth, email, password)
+      
+      // Guardar contraseña temporalmente para restaurar sesión después de crear clientes
+      if (email.toLowerCase() === 'piperubiocoach@gmail.com' || email.toLowerCase() === 'sebassennin@gmail.com') {
+        sessionStorage.setItem('coach_password_temp', password)
+      }
+      
       navigate("/home")
     } catch (error: any) {
       console.error("Error al iniciar sesión:", error)

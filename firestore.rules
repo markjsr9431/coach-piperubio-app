@@ -87,6 +87,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // Regla para pagos de clientes
+    match /clients/{clientId}/payments/{paymentId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir escritura solo a admins
+      allow write: if isAdmin();
+    }
+    
     // Regla por defecto: denegar todo lo demás
     match /{document=**} {
       allow read, write: if false;

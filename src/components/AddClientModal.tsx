@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useLanguage } from '../contexts/LanguageContext'
-import { sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth'
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { auth, db } from '../firebaseConfig'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 
@@ -60,16 +60,25 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                        Math.random().toString(36).slice(-12).toUpperCase() + '123!'
       }
       
-      // Guardar el email del admin antes de crear el cliente
-      const adminEmail = auth.currentUser?.email
+      // Guardar credenciales del coach antes de crear el cliente
+      const coachEmail = auth.currentUser?.email
+      const coachPassword = sessionStorage.getItem('coach_password_temp')
       
-      if (!adminEmail) {
-        throw new Error('No hay un usuario admin autenticado')
+      if (!coachEmail) {
+        throw new Error('No se pudo obtener la sesión del coach')
       }
 
-      // Guardar información del cliente ANTES de crear el usuario
-      // para evitar problemas de permisos
-      const clientData = {
+      // Crear usuario directamente
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email.toLowerCase(),
+        passwordToUse
+      )
+
+      const createdClientId = userCredential.user.uid
+
+      // Guardar información del cliente en Firestore
+      await setDoc(doc(db, 'clients', createdClientId), {
         name: formData.name,
         email: formData.email.toLowerCase(),
         phone: formData.phone || '',
@@ -77,80 +86,53 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
         status: 'active',
         createdAt: serverTimestamp(),
         role: 'client',
-        createdBy: adminEmail
-      }
+        createdBy: coachEmail
+      })
 
-      // Crear usuario (esto deslogueará al admin temporalmente)
-      let userCredential
-      try {
-        userCredential = await createUserWithEmailAndPassword(auth, formData.email, passwordToUse)
-        
-        // Guardar información del cliente en Firestore inmediatamente
-        // Usar el UID del usuario recién creado
-        await setDoc(doc(db, 'clients', userCredential.user.uid), clientData)
-        console.log('Cliente creado exitosamente en Firestore:', userCredential.user.uid)
-        
-        // Enviar email de restablecimiento de contraseña solo si se generó una automática
-        if (!useCustomPassword) {
-          try {
-            await sendPasswordResetEmail(auth, formData.email)
-          } catch (emailError) {
-            console.warn('No se pudo enviar el email de restablecimiento:', emailError)
-            // Continuar aunque falle el envío del email
-          }
-        }
-      } catch (createError: any) {
-        // Si el error es que el email ya existe, intentar crear el documento de todas formas
-        if (createError.code === 'auth/email-already-in-use') {
-          // El usuario ya existe, intentar obtener su UID o crear documento con email como referencia
-          throw createError // Dejamos que el manejo de errores lo procese
-        }
-        throw createError
-      } finally {
-        // Intentar re-autenticar al admin si es posible
-        // Nota: Esto requeriría tener la contraseña del admin guardada, 
-        // lo cual no es seguro. Mejor solución sería usar Cloud Functions.
-        // Por ahora, el admin tendrá que iniciar sesión de nuevo.
+      // Restaurar sesión del coach inmediatamente
+      if (coachPassword) {
+        await signInWithEmailAndPassword(auth, coachEmail, coachPassword)
+      } else {
+        // Si no hay contraseña guardada, el usuario deberá iniciar sesión de nuevo
+        console.warn('No se pudo restaurar la sesión del coach automáticamente')
       }
+      
+      console.log('Cliente creado exitosamente:', createdClientId)
       
       setLoading(false)
       setStep('success')
-      // Guardar el clientId para navegación
-      const createdClientId = userCredential.user.uid
       setTimeout(() => {
         onSuccess()
         handleClose()
-        // Navegar al perfil del cliente recién creado
-        if (createdClientId) {
-          window.location.href = `/client/${createdClientId}/profile`
-        }
       }, 2000)
     } catch (error: any) {
       console.error('Error al agregar cliente:', error)
-      console.error('Detalles del error:', {
-        code: error.code,
-        message: error.message,
-        stack: error.stack
-      })
       
       let errorMessage = 'Error al agregar cliente. Por favor, intenta de nuevo.'
       
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'Este email ya está registrado. El cliente puede iniciar sesión directamente.'
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'El email ingresado no es válido.'
+        errorMessage = 'El email proporcionado no es válido.'
       } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'La contraseña es muy débil. Por favor, usa una contraseña más segura.'
-      } else if (error.code === 'permission-denied') {
-        errorMessage = 'No tienes permisos para crear clientes. Por favor, verifica las reglas de Firestore.'
-      } else if (error.code?.startsWith('firestore/')) {
-        errorMessage = `Error de Firestore: ${error.message}. Verifica las reglas de seguridad.`
+        errorMessage = 'La contraseña es muy débil. Debe tener al menos 6 caracteres.'
       } else if (error.message) {
         errorMessage = error.message
       }
       
       setError(errorMessage)
       setLoading(false)
+      
+      // Intentar restaurar sesión del coach incluso si hay error
+      const coachEmail = auth.currentUser?.email
+      const coachPassword = sessionStorage.getItem('coach_password_temp')
+      if (coachEmail && coachPassword) {
+        try {
+          await signInWithEmailAndPassword(auth, coachEmail, coachPassword)
+        } catch (restoreError) {
+          console.error('Error al restaurar sesión del coach:', restoreError)
+        }
+      }
     }
   }
 
@@ -180,7 +162,7 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={handleClose}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-black/50 backdrop-blur-md z-[100]"
           />
           
           {/* Modal */}
@@ -192,10 +174,10 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
             style={{ minHeight: '100vh' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`w-full max-w-md rounded-2xl shadow-2xl ${
+            <div className={`w-full max-w-md rounded-2xl shadow-2xl backdrop-blur-sm ${
               theme === 'dark' 
-                ? 'bg-slate-800 border border-slate-700' 
-                : 'bg-white border border-gray-200'
+                ? 'bg-slate-800/90 border border-slate-700/50' 
+                : 'bg-white/90 border border-gray-200/50'
             }`}>
               {step === 'form' ? (
                 <>

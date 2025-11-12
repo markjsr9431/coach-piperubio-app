@@ -7,6 +7,7 @@ export interface DailyFeedbackData {
   effort: number | null
   weightUsed: string[]
   weightDetails: string
+  weightAmounts: { [key: string]: string } // Mapea implemento -> peso usado
   feeling: string | null
 }
 
@@ -25,9 +26,9 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
     effort: null,
     weightUsed: [],
     weightDetails: '',
+    weightAmounts: {},
     feeling: null
   })
-  const [showOtherInput, setShowOtherInput] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   const feelings = [
@@ -61,8 +62,11 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
             parsed.weightUsed = parsed.weightUsed ? [parsed.weightUsed] : []
             parsed.weightDetails = parsed.weightDetails || ''
           }
+          // Asegurar que weightAmounts existe
+          if (!parsed.weightAmounts) {
+            parsed.weightAmounts = {}
+          }
           setFeedback(parsed)
-          setShowOtherInput(parsed.weightDetails ? true : parsed.weightUsed.includes('Otro'))
           if (onFeedbackChange) {
             onFeedbackChange(parsed)
           }
@@ -104,34 +108,30 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
     setFeedback(prev => ({ ...prev, effort: value }))
   }
 
-  const handleWeightDetailsChange = (value: string) => {
-    setFeedback(prev => ({ ...prev, weightDetails: value }))
-  }
-
   const handleQuickWeightClick = (option: string) => {
     setFeedback(prev => {
       const currentWeights = prev.weightUsed || []
+      const currentAmounts = prev.weightAmounts || {}
       // Si ya está seleccionado, deseleccionar
       if (currentWeights.includes(option)) {
         const newWeights = currentWeights.filter(w => w !== option)
-        return { ...prev, weightUsed: newWeights }
-      }
-      // Si es "Otro", mostrar el input
-      if (option === 'Otro') {
-        setShowOtherInput(true)
-        return { ...prev, weightUsed: [...currentWeights, option] }
+        const newAmounts = { ...currentAmounts }
+        delete newAmounts[option]
+        return { ...prev, weightUsed: newWeights, weightAmounts: newAmounts }
       }
       // Añadir a la lista
       return { ...prev, weightUsed: [...currentWeights, option] }
     })
   }
 
-  const handleRemoveOther = () => {
-    setFeedback(prev => {
-      const newWeights = prev.weightUsed.filter(w => w !== 'Otro')
-      setShowOtherInput(false)
-      return { ...prev, weightUsed: newWeights, weightDetails: '' }
-    })
+  const handleWeightAmountChange = (implement: string, amount: string) => {
+    setFeedback(prev => ({
+      ...prev,
+      weightAmounts: {
+        ...prev.weightAmounts,
+        [implement]: amount
+      }
+    }))
   }
 
   const handleFeelingChange = (value: string) => {
@@ -340,37 +340,32 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
             </button>
           </div>
 
-          {/* Input para detalles de "Otro" */}
-          {showOtherInput && (
-            <div className="mb-3">
-              <div className="flex items-center gap-2 mb-2">
-                <label className={`text-sm font-medium ${
-                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                }`}>
-                  Detalles del peso utilizado:
-                </label>
-                <button
-                  type="button"
-                  onClick={handleRemoveOther}
-                  className="text-red-500 hover:text-red-600 text-sm"
-                >
-                  ✕
-                </button>
-              </div>
-              <input
-                type="text"
-                value={feedback.weightDetails}
-                onChange={(e) => handleWeightDetailsChange(e.target.value)}
-                placeholder="Ej: Mancuerna (5kg), Barra + Discos (20kg)"
-                disabled={submitted}
-                className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                  submitted ? 'opacity-50 cursor-not-allowed' : ''
-                } ${
-                  theme === 'dark'
-                    ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                }`}
-              />
+          {/* Campos de peso específico para cada implemento seleccionado */}
+          {feedback.weightUsed.filter(w => w !== 'Otro').length > 0 && (
+            <div className="mb-3 space-y-2">
+              {feedback.weightUsed.filter(w => w !== 'Otro').map((implement) => (
+                <div key={implement} className="flex items-center gap-2">
+                  <label className={`text-sm font-medium min-w-[120px] ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    {implement} (kg):
+                  </label>
+                  <input
+                    type="text"
+                    value={feedback.weightAmounts[implement] || ''}
+                    onChange={(e) => handleWeightAmountChange(implement, e.target.value)}
+                    placeholder="Ej: 10, 15, 20"
+                    disabled={submitted}
+                    className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
+                      submitted ? 'opacity-50 cursor-not-allowed' : ''
+                    } ${
+                      theme === 'dark'
+                        ? 'bg-slate-700/50 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                    }`}
+                  />
+                </div>
+              ))}
             </div>
           )}
 
@@ -387,10 +382,10 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
               <p className={`text-sm ${
                 theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
               }`}>
-                {feedback.weightUsed.filter(w => w !== 'Otro').join(', ')}
-                {feedback.weightUsed.includes('Otro') && feedback.weightDetails && (
-                  <span> - {feedback.weightDetails}</span>
-                )}
+                {feedback.weightUsed.filter(w => w !== 'Otro').map(implement => {
+                  const amount = feedback.weightAmounts[implement]
+                  return amount ? `${implement} (${amount}kg)` : implement
+                }).join(', ')}
               </p>
             </div>
           )}

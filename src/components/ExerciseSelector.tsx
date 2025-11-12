@@ -18,6 +18,7 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
   const [sets, setSets] = useState('3')
   const [reps, setReps] = useState('12')
   const [customVideo, setCustomVideo] = useState('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'none'>('none')
 
   // Prevenir scroll del body cuando el modal está abierto
   useEffect(() => {
@@ -29,8 +30,23 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
   }, [])
 
   const filteredExercises = useMemo(() => {
-    return searchExercises(searchQuery, selectedCategory || undefined)
-  }, [searchQuery, selectedCategory])
+    let exercises = searchExercises(searchQuery, selectedCategory || undefined)
+    
+    // Aplicar ordenamiento alfabético si está activo
+    if (sortOrder !== 'none') {
+      exercises = [...exercises].sort((a, b) => {
+        const nameA = a.name.toLowerCase()
+        const nameB = b.name.toLowerCase()
+        if (sortOrder === 'asc') {
+          return nameA.localeCompare(nameB, 'es')
+        } else {
+          return nameB.localeCompare(nameA, 'es')
+        }
+      })
+    }
+    
+    return exercises
+  }, [searchQuery, selectedCategory, sortOrder])
 
   const handleSelectExercise = (exercise: ExerciseData) => {
     setSelectedExercise(exercise)
@@ -140,10 +156,8 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
             </svg>
           </div>
 
-          {/* Category Filter - Múltiples filas */}
-          <div 
-            className="flex flex-wrap gap-2"
-          >
+          {/* Category Filter and Sort - Múltiples filas */}
+          <div className="flex flex-wrap gap-2 items-center mb-2">
             <button
               onClick={() => setSelectedCategory('')}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -156,6 +170,32 @@ const ExerciseSelector = ({ onSelect, onClose, addedExercisesCount = 0, currentS
             >
               Todas
             </button>
+            <div className={`ml-auto flex items-center gap-2 px-3 py-2 rounded-lg ${
+              theme === 'dark' ? 'bg-slate-700' : 'bg-gray-100'
+            }`}>
+              <span className={`text-sm font-semibold ${
+                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+              }`}>
+                Ordenar:
+              </span>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc' | 'none')}
+                className={`text-sm rounded px-2 py-1 border transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-slate-600 border-slate-500 text-white'
+                    : 'bg-white border-gray-300 text-gray-900'
+                } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+              >
+                <option value="none">Sin ordenar</option>
+                <option value="asc">A-Z</option>
+                <option value="desc">Z-A</option>
+              </select>
+            </div>
+          </div>
+          <div 
+            className="flex flex-wrap gap-2"
+          >
             {exerciseCategories.map((category) => (
               <button
                 key={category}

@@ -3,6 +3,8 @@ import { motion } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { db } from '../firebaseConfig'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { compareRMWithOtherClients, comparePRWithOtherClients, ComparisonResult } from '../utils/rmprComparison'
+import RMPRComparisonAlert from './RMPRComparisonAlert'
 
 export interface RMRecord {
   id: string
@@ -35,7 +37,17 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
   const [saving, setSaving] = useState(false)
   const [showRMForm, setShowRMForm] = useState(false)
   const [showPRForm, setShowPRForm] = useState(false)
+  const [editingRMId, setEditingRMId] = useState<string | null>(null)
+  const [editingPRId, setEditingPRId] = useState<string | null>(null)
   const [sendingToCoach, setSendingToCoach] = useState(false)
+  const [showComparisonAlert, setShowComparisonAlert] = useState(false)
+  const [comparisonData, setComparisonData] = useState<{
+    type: 'RM' | 'PR'
+    exercise: string
+    value: string
+    comparisons: ComparisonResult[]
+  } | null>(null)
+  const [pendingSave, setPendingSave] = useState<(() => Promise<void>) | null>(null)
 
   const [rmForm, setRmForm] = useState({
     exercise: '',
@@ -82,14 +94,48 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
     loadData()
   }, [clientId])
 
-  const handleAddRM = async () => {
-    if (!rmForm.exercise || !rmForm.weight || !rmForm.implement) {
-      alert('Por favor completa todos los campos')
-      return
-    }
+  // Función helper para verificar si ya existe un registro para hoy
+  const hasRecordForToday = (records: RMRecord[] | PRRecord[]): boolean => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return records.some(record => {
+      let recordDate: Date
+      if (record.date instanceof Date) {
+        recordDate = new Date(record.date)
+      } else if (typeof record.date === 'number') {
+        recordDate = new Date(record.date)
+      } else {
+        return false
+      }
+      recordDate.setHours(0, 0, 0, 0)
+      return recordDate.getTime() === today.getTime()
+    })
+  }
 
+  const saveRM = async () => {
     setSaving(true)
     try {
+      const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
+      
+      // Obtener datos existentes
+      const existingData = await getDoc(dataRef)
+      const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
+      const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
+      
+      // Convertir a formato Date para verificación
+      const rmsWithDates = existingRms.map((rm: any) => ({
+        ...rm,
+        date: rm.date?.toDate ? rm.date.toDate() : (typeof rm.date === 'number' ? new Date(rm.date) : new Date())
+      }))
+      
+      // Verificar límite diario solo si NO es el coach (es decir, es el cliente)
+      if (!isCoach && hasRecordForToday(rmsWithDates)) {
+        alert('Ya has registrado un RM hoy. Solo puedes registrar uno por día.')
+        setSaving(false)
+        return
+      }
+
       const newRM: RMRecord = {
         id: Date.now().toString(),
         exercise: rmForm.exercise,
@@ -97,13 +143,6 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         implement: rmForm.implement,
         date: new Date()
       }
-
-      const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
-      
-      // Obtener datos existentes
-      const existingData = await getDoc(dataRef)
-      const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
-      const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
       
       // Crear nuevo RM con fecha como número (timestamp)
       // No usar serverTimestamp() dentro del array
@@ -115,8 +154,18 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         date: Date.now() // Usar timestamp numérico en lugar de serverTimestamp()
       }
       
-      // Añadir el nuevo RM
-      const updatedRms = [...existingRms, newRMToSave]
+      // Actualizar o añadir el RM
+      let updatedRms: any[]
+      if (editingRMId) {
+        // Actualizar RM existente
+        updatedRms = existingRms.map((rm: any) => 
+          rm.id === editingRMId ? newRMToSave : rm
+        )
+        setEditingRMId(null)
+      } else {
+        // Añadir nuevo RM
+        updatedRms = [...existingRms, newRMToSave]
+      }
       
       // Guardar en Firestore - serverTimestamp solo fuera de arrays
       await setDoc(dataRef, {
@@ -133,6 +182,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
 
       setRmForm({ exercise: '', weight: '', implement: '' })
       setShowRMForm(false)
+      setEditingRMId(null)
     } catch (error) {
       console.error('Error saving RM:', error)
       alert('Error al guardar el RM')
@@ -141,14 +191,120 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
     }
   }
 
-  const handleAddPR = async () => {
-    if (!prForm.exercise || !prForm.time || !prForm.implement) {
+  const handleAddRM = async () => {
+    if (!rmForm.exercise || !rmForm.weight || !rmForm.implement) {
       alert('Por favor completa todos los campos')
       return
     }
 
+    // Solo comparar si es un cliente (no el coach)
+    if (!isCoach && isCurrentUser) {
+      try {
+        const comparisons = await compareRMWithOtherClients(clientId, {
+          exercise: rmForm.exercise.trim(),
+          weight: rmForm.weight.trim(),
+          implement: rmForm.implement.trim()
+        })
+
+        if (comparisons.length > 0) {
+          // Mostrar alerta de comparación
+          setComparisonData({
+            type: 'RM',
+            exercise: rmForm.exercise.trim(),
+            value: rmForm.weight.trim(),
+            comparisons
+          })
+          setPendingSave(() => saveRM)
+          setShowComparisonAlert(true)
+          return
+        }
+      } catch (error) {
+        console.error('Error comparing RM:', error)
+        // Continuar con el guardado si hay error en la comparación
+      }
+    }
+
+    // Si no hay comparaciones o es el coach, guardar directamente
+    await saveRM()
+  }
+
+  const handleDeleteRM = async (rmId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este RM?')) return
+
+    try {
+      const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
+      const existingData = await getDoc(dataRef)
+      const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
+      const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
+      
+      const updatedRms = existingRms.filter((rm: any) => rm.id !== rmId)
+      
+      await setDoc(dataRef, {
+        rms: updatedRms,
+        prs: existingPrs,
+        lastUpdated: serverTimestamp()
+      }, { merge: true })
+      
+      setRms(updatedRms.map((rm: any) => ({
+        ...rm,
+        date: rm.date?.toDate ? rm.date.toDate() : (typeof rm.date === 'number' ? new Date(rm.date) : new Date())
+      })))
+    } catch (error) {
+      console.error('Error deleting RM:', error)
+      alert('Error al eliminar el RM')
+    }
+  }
+
+  const handleDeletePR = async (prId: string) => {
+    if (!confirm('¿Estás seguro de que deseas eliminar este PR?')) return
+
+    try {
+      const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
+      const existingData = await getDoc(dataRef)
+      const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
+      const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
+      
+      const updatedPrs = existingPrs.filter((pr: any) => pr.id !== prId)
+      
+      await setDoc(dataRef, {
+        rms: existingRms,
+        prs: updatedPrs,
+        lastUpdated: serverTimestamp()
+      }, { merge: true })
+      
+      setPrs(updatedPrs.map((pr: any) => ({
+        ...pr,
+        date: pr.date?.toDate ? pr.date.toDate() : (typeof pr.date === 'number' ? new Date(pr.date) : new Date())
+      })))
+    } catch (error) {
+      console.error('Error deleting PR:', error)
+      alert('Error al eliminar el PR')
+    }
+  }
+
+  const savePR = async () => {
     setSaving(true)
     try {
+      const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
+      
+      // Obtener datos existentes
+      const existingData = await getDoc(dataRef)
+      const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
+      const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
+      
+      // Convertir a formato Date para verificación
+      const prsWithDates = existingPrs.map((pr: any) => ({
+        ...pr,
+        date: pr.date?.toDate ? pr.date.toDate() : (typeof pr.date === 'number' ? new Date(pr.date) : new Date())
+      }))
+      
+      // Verificar límite diario solo si NO es el coach (es decir, es el cliente)
+      if (!isCoach && hasRecordForToday(prsWithDates)) {
+        alert('Ya has registrado un PR hoy. Solo puedes registrar uno por día.')
+        setSaving(false)
+        return
+      }
+
       const newPR: PRRecord = {
         id: Date.now().toString(),
         exercise: prForm.exercise,
@@ -156,13 +312,6 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         implement: prForm.implement,
         date: new Date()
       }
-
-      const dataRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
-      
-      // Obtener datos existentes
-      const existingData = await getDoc(dataRef)
-      const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
-      const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
       
       // Crear nuevo PR con fecha como número (timestamp)
       // No usar serverTimestamp() dentro del array
@@ -174,8 +323,18 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         date: Date.now() // Usar timestamp numérico en lugar de serverTimestamp()
       }
       
-      // Añadir el nuevo PR
-      const updatedPrs = [...existingPrs, newPRToSave]
+      // Actualizar o añadir el PR
+      let updatedPrs: any[]
+      if (editingPRId) {
+        // Actualizar PR existente
+        updatedPrs = existingPrs.map((pr: any) => 
+          pr.id === editingPRId ? newPRToSave : pr
+        )
+        setEditingPRId(null)
+      } else {
+        // Añadir nuevo PR
+        updatedPrs = [...existingPrs, newPRToSave]
+      }
       
       // Guardar en Firestore - serverTimestamp solo fuera de arrays
       await setDoc(dataRef, {
@@ -192,12 +351,50 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
 
       setPrForm({ exercise: '', time: '', implement: '' })
       setShowPRForm(false)
+      setEditingPRId(null)
     } catch (error) {
       console.error('Error saving PR:', error)
       alert('Error al guardar el PR')
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleAddPR = async () => {
+    if (!prForm.exercise || !prForm.time || !prForm.implement) {
+      alert('Por favor completa todos los campos')
+      return
+    }
+
+    // Solo comparar si es un cliente (no el coach)
+    if (!isCoach && isCurrentUser) {
+      try {
+        const comparisons = await comparePRWithOtherClients(clientId, {
+          exercise: prForm.exercise.trim(),
+          time: prForm.time.trim(),
+          implement: prForm.implement.trim()
+        })
+
+        if (comparisons.length > 0) {
+          // Mostrar alerta de comparación
+          setComparisonData({
+            type: 'PR',
+            exercise: prForm.exercise.trim(),
+            value: prForm.time.trim(),
+            comparisons
+          })
+          setPendingSave(() => savePR)
+          setShowComparisonAlert(true)
+          return
+        }
+      } catch (error) {
+        console.error('Error comparing PR:', error)
+        // Continuar con el guardado si hay error en la comparación
+      }
+    }
+
+    // Si no hay comparaciones o es el coach, guardar directamente
+    await savePR()
   }
 
   const handleSendToCoach = async () => {
@@ -273,7 +470,15 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
           </h3>
           {isCurrentUser && (
             <button
-              onClick={() => setShowRMForm(!showRMForm)}
+              onClick={() => {
+                if (showRMForm) {
+                  setShowRMForm(false)
+                  setEditingRMId(null)
+                  setRmForm({ exercise: '', weight: '', implement: '' })
+                } else {
+                  setShowRMForm(true)
+                }
+              }}
               className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-sm"
             >
               {showRMForm ? 'Cancelar' : '+ Añadir RM'}
@@ -328,7 +533,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
                 disabled={saving}
                 className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
               >
-                {saving ? 'Guardando...' : 'Guardar RM'}
+                {saving ? 'Guardando...' : editingRMId ? 'Actualizar RM' : 'Guardar RM'}
               </button>
             </div>
           </motion.div>
@@ -349,7 +554,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="flex-1">
                     <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {rm.exercise}
                     </p>
@@ -372,6 +577,44 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
                       })()}
                     </p>
                   </div>
+                  {isCoach && (
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => {
+                          setRmForm({
+                            exercise: rm.exercise,
+                            weight: rm.weight,
+                            implement: rm.implement
+                          })
+                          setEditingRMId(rm.id)
+                          setShowRMForm(true)
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          theme === 'dark'
+                            ? 'text-yellow-400 hover:bg-slate-700'
+                            : 'text-yellow-600 hover:bg-gray-200'
+                        }`}
+                        title="Editar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRM(rm.id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          theme === 'dark'
+                            ? 'text-red-400 hover:bg-slate-700'
+                            : 'text-red-600 hover:bg-gray-200'
+                        }`}
+                        title="Eliminar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -393,7 +636,15 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
           </h3>
           {isCurrentUser && (
             <button
-              onClick={() => setShowPRForm(!showPRForm)}
+              onClick={() => {
+                if (showPRForm) {
+                  setShowPRForm(false)
+                  setEditingPRId(null)
+                  setPrForm({ exercise: '', time: '', implement: '' })
+                } else {
+                  setShowPRForm(true)
+                }
+              }}
               className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-sm"
             >
               {showPRForm ? 'Cancelar' : '+ Añadir PR'}
@@ -448,7 +699,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
                 disabled={saving}
                 className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
               >
-                {saving ? 'Guardando...' : 'Guardar PR'}
+                {saving ? 'Guardando...' : editingPRId ? 'Actualizar PR' : 'Guardar PR'}
               </button>
             </div>
           </motion.div>
@@ -469,7 +720,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="flex-1">
                     <p className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
                       {pr.exercise}
                     </p>
@@ -492,6 +743,44 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
                       })()}
                     </p>
                   </div>
+                  {isCoach && (
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => {
+                          setPrForm({
+                            exercise: pr.exercise,
+                            time: pr.time,
+                            implement: pr.implement
+                          })
+                          setEditingPRId(pr.id)
+                          setShowPRForm(true)
+                        }}
+                        className={`p-2 rounded-lg transition-colors ${
+                          theme === 'dark'
+                            ? 'text-yellow-400 hover:bg-slate-700'
+                            : 'text-yellow-600 hover:bg-gray-200'
+                        }`}
+                        title="Editar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => handleDeletePR(pr.id)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          theme === 'dark'
+                            ? 'text-red-400 hover:bg-slate-700'
+                            : 'text-red-600 hover:bg-gray-200'
+                        }`}
+                        title="Eliminar"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -510,6 +799,30 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
             {sendingToCoach ? 'Enviando...' : 'Enviar RM y PR Actualizado al Coach'}
           </button>
         </div>
+      )}
+
+      {/* Alerta de comparación RM/PR */}
+      {comparisonData && (
+        <RMPRComparisonAlert
+          isOpen={showComparisonAlert}
+          type={comparisonData.type}
+          exercise={comparisonData.exercise}
+          value={comparisonData.value}
+          comparisons={comparisonData.comparisons}
+          onConfirm={async () => {
+            setShowComparisonAlert(false)
+            if (pendingSave) {
+              await pendingSave()
+              setPendingSave(null)
+              setComparisonData(null)
+            }
+          }}
+          onCancel={() => {
+            setShowComparisonAlert(false)
+            setPendingSave(null)
+            setComparisonData(null)
+          }}
+        />
       )}
     </div>
   )

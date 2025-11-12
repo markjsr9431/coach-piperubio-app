@@ -67,14 +67,14 @@ const TimerModal = ({ onClose, onMinimize, isMinimized = false }: TimerModalProp
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
           onClick={(e) => e.stopPropagation()}
-          className="bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 relative"
+          className="bg-slate-800/90 backdrop-blur-sm border border-slate-700/50 rounded-xl shadow-2xl max-w-md w-full p-6 relative"
         >
           <div className="absolute top-4 right-4 flex gap-2 z-10">
             {onMinimize && (

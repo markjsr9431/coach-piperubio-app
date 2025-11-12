@@ -14,9 +14,38 @@ export interface Workout {
   sections: Section[];
 }
 
+// Función para obtener el próximo lunes desde hoy (o usar una fecha de inicio específica)
+function getStartDate(): Date {
+  const today = new Date();
+  // Buscar el próximo lunes (o usar el lunes de esta semana si es lunes o antes)
+  const dayOfWeek = today.getDay(); // 0 = Domingo, 1 = Lunes, etc.
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : (dayOfWeek === 1 ? 0 : 8 - dayOfWeek);
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() + daysUntilMonday);
+  startDate.setHours(0, 0, 0, 0);
+  return startDate;
+}
+
+// Función para formatear fecha
+function formatDate(date: Date): string {
+  const dayNumber = date.getDate();
+  const monthNumber = date.getMonth() + 1;
+  return `${dayNumber}/${monthNumber}`;
+}
+
+// Función para obtener nombre del día
+function getDayName(date: Date): string {
+  const weekDayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  return weekDayNames[date.getDay()];
+}
+
+// Calcular fecha de inicio (próximo lunes)
+const startDate = getStartDate();
+let currentDate = new Date(startDate);
+
 export const workouts: Workout[] = [
   {
-    day: "Día 1 - Lunes",
+    day: `Día 1 - ${getDayName(currentDate)} - ${formatDate(currentDate)}`,
     sections: [
       {
         name: "Calentamiento",
@@ -51,7 +80,11 @@ export const workouts: Workout[] = [
     ]
   },
   {
-    day: "Día 2 - Martes",
+    day: (() => {
+      const date = new Date(currentDate);
+      date.setDate(date.getDate() + 1);
+      return `Día 2 - ${getDayName(date)} - ${formatDate(date)}`;
+    })(),
     sections: [
       {
         name: "Calentamiento",
@@ -82,7 +115,11 @@ export const workouts: Workout[] = [
     ]
   },
   {
-    day: "Día 3 - Miércoles",
+    day: (() => {
+      const date = new Date(currentDate);
+      date.setDate(date.getDate() + 2);
+      return `Día 3 - ${getDayName(date)} - ${formatDate(date)}`;
+    })(),
     sections: [
       {
         name: "Calentamiento",
@@ -107,7 +144,11 @@ export const workouts: Workout[] = [
     ]
   },
   {
-    day: "Día 4 - Jueves",
+    day: (() => {
+      const date = new Date(currentDate);
+      date.setDate(date.getDate() + 3);
+      return `Día 4 - ${getDayName(date)} - ${formatDate(date)}`;
+    })(),
     sections: [
       {
         name: "Calentamiento",
@@ -125,7 +166,11 @@ export const workouts: Workout[] = [
     ]
   },
   {
-    day: "Día 5 - Viernes",
+    day: (() => {
+      const date = new Date(currentDate);
+      date.setDate(date.getDate() + 4);
+      return `Día 5 - ${getDayName(date)} - ${formatDate(date)}`;
+    })(),
     sections: [
       {
         name: "Calentamiento",
@@ -150,17 +195,31 @@ export const workouts: Workout[] = [
 ];
 
 // Generate days 6-30 with placeholder data
-// Lunes a Sábado (sin domingos), sábados son opcionales
-const weekDays = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+// Basado en calendario real (sin domingos), sábados son opcionales
+// Continuar desde el día 6 (que sería el sábado después del viernes del día 5)
+let currentDateForGeneration = new Date(currentDate);
+currentDateForGeneration.setDate(currentDateForGeneration.getDate() + 5); // Avanzar al día 6
 let dayCounter = 6;
-let weekDayIndex = 0;
+let workoutDaysGenerated = 0;
 
-while (dayCounter <= 30) {
-  const dayName = weekDays[weekDayIndex];
-  const isSaturday = weekDayIndex === 5; // Sábado es el índice 5
+// Ya tenemos 5 días (Día 1-5), necesitamos generar 25 más para llegar a 30
+while (workoutDaysGenerated < 25) {
+  const dayOfWeek = currentDateForGeneration.getDay(); // 0 = Domingo, 1 = Lunes, etc.
+  
+  // Saltar domingos (día 0)
+  if (dayOfWeek === 0) {
+    currentDateForGeneration.setDate(currentDateForGeneration.getDate() + 1);
+    continue;
+  }
+  
+  const dayName = getDayName(currentDateForGeneration);
+  const isSaturday = dayOfWeek === 6; // Sábado es el día 6
+  const dateStr = formatDate(currentDateForGeneration);
   
   workouts.push({
-    day: isSaturday ? `Día ${dayCounter} - ${dayName} (Opcional)` : `Día ${dayCounter} - ${dayName}`,
+    day: isSaturday 
+      ? `Día ${dayCounter} - ${dayName} (Opcional) - ${dateStr}` 
+      : `Día ${dayCounter} - ${dayName} - ${dateStr}`,
     sections: [
       {
         name: "Calentamiento",
@@ -184,6 +243,8 @@ while (dayCounter <= 30) {
   });
   
   dayCounter++;
-  weekDayIndex = (weekDayIndex + 1) % 6; // Ciclo de lunes a sábado (6 días)
+  workoutDaysGenerated++;
+  // Avanzar al siguiente día (saltando domingos)
+  currentDateForGeneration.setDate(currentDateForGeneration.getDate() + 1);
 }
 

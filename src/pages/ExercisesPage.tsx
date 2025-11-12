@@ -14,6 +14,7 @@ const ExercisesPage = () => {
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'none'>('none')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<ExerciseData | null>(null)
@@ -116,8 +117,21 @@ const ExercisesPage = () => {
       filtered = filtered.filter(exercise => exercise.category === selectedCategory)
     }
 
+    // Aplicar ordenamiento alfabético si está activo
+    if (sortOrder !== 'none') {
+      filtered = [...filtered].sort((a, b) => {
+        const nameA = a.name.toLowerCase()
+        const nameB = b.name.toLowerCase()
+        if (sortOrder === 'asc') {
+          return nameA.localeCompare(nameB, 'es')
+        } else {
+          return nameB.localeCompare(nameA, 'es')
+        }
+      })
+    }
+
     return filtered
-  }, [exercises, searchQuery, selectedCategory])
+  }, [exercises, searchQuery, selectedCategory, sortOrder])
 
   return (
     <div className={`min-h-screen bg-gradient-to-br ${
@@ -196,8 +210,8 @@ const ExercisesPage = () => {
               </svg>
             </div>
 
-            {/* Category Filter */}
-            <div className="flex flex-wrap gap-2">
+            {/* Category Filter and Sort */}
+            <div className="flex flex-wrap gap-2 items-center mb-2">
               <button
                 onClick={() => setSelectedCategory('')}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -210,6 +224,30 @@ const ExercisesPage = () => {
               >
                 Todas
               </button>
+              <div className={`ml-auto flex items-center gap-2 px-3 py-2 rounded-lg ${
+                theme === 'dark' ? 'bg-slate-700' : 'bg-gray-100'
+              }`}>
+                <span className={`text-sm font-semibold ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Ordenar:
+                </span>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc' | 'none')}
+                  className={`text-sm rounded px-2 py-1 border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-600 border-slate-500 text-white'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                >
+                  <option value="none">Sin ordenar</option>
+                  <option value="asc">A-Z</option>
+                  <option value="desc">Z-A</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
               {exerciseCategories.map((category) => (
                 <button
                   key={category}

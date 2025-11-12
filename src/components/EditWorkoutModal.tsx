@@ -221,7 +221,7 @@ const EditWorkoutModal = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+              className="fixed inset-0 bg-black/50 backdrop-blur-md z-40"
             />
 
             {/* Modal */}
@@ -233,8 +233,8 @@ const EditWorkoutModal = ({
               onClick={(e) => e.stopPropagation()}
             >
               <div className={`w-full max-w-4xl rounded-2xl shadow-2xl ${
-                theme === 'dark' ? 'bg-slate-800' : 'bg-white'
-              } max-h-[90vh] flex flex-col`}>
+                theme === 'dark' ? 'bg-slate-800/90 border border-slate-700/50' : 'bg-white/90 border border-gray-200/50'
+              } max-h-[90vh] flex flex-col backdrop-blur-sm`}>
                 {/* Header */}
                 <div className={`p-6 border-b ${
                   theme === 'dark' ? 'border-slate-700' : 'border-gray-200'

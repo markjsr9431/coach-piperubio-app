@@ -6,6 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import TopBanner from '../components/TopBanner'
 import AddClientModal from '../components/AddClientModal'
+import ImportClientsModal from '../components/ImportClientsModal'
 import { db } from '../firebaseConfig'
 import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore'
 import { calculateTimeActive } from '../utils/timeUtils'
@@ -25,6 +26,7 @@ interface Client {
   subscriptionEndDate?: any
   profilePhoto?: string | null
   avatar?: string | null
+  clientCategory?: 'new' | 'old'
   progress?: {
     monthlyProgress: number
     completedDays: number
@@ -41,9 +43,13 @@ const HomePage = () => {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [activeCategory, setActiveCategory] = useState<'new' | 'old' | null>(null)
+  const [isAllClientsCollapsed, setIsAllClientsCollapsed] = useState(false)
+  const [sortBy, setSortBy] = useState<'name' | 'subscription' | 'payment' | 'none'>('none')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -115,6 +121,7 @@ const HomePage = () => {
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
                 profilePhoto: data.profilePhoto || null,
                 avatar: data.avatar || null,
+                clientCategory: data.clientCategory || undefined,
                 progress
               }
                 return client
@@ -175,6 +182,7 @@ const HomePage = () => {
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
                 profilePhoto: data.profilePhoto || null,
                 avatar: data.avatar || null,
+                clientCategory: data.clientCategory || undefined,
                 progress
               }
               return client
@@ -274,9 +282,40 @@ const HomePage = () => {
         clientCategory: newCategory,
         categoryUpdatedAt: new Date().toISOString()
       })
+      // Actualizar el estado local inmediatamente para feedback visual
+      setClients(prevClients => 
+        prevClients.map(client => 
+          client.id === clientId 
+            ? { ...client, clientCategory: newCategory }
+            : client
+        )
+      )
     } catch (error: any) {
       console.error('Error al cambiar categoría del cliente:', error)
       alert('Error al cambiar la categoría del cliente')
+    }
+  }
+
+  const handlePlanChange = async (e: React.ChangeEvent<HTMLSelectElement>, clientId: string) => {
+    e.stopPropagation() // Evitar que se active el onClick de la tarjeta
+    const newPlan = e.target.value
+    
+    try {
+      const clientRef = doc(db, 'clients', clientId)
+      await updateDoc(clientRef, {
+        plan: newPlan
+      })
+      // Actualizar el estado local inmediatamente para feedback visual
+      setClients(prevClients => 
+        prevClients.map(client => 
+          client.id === clientId 
+            ? { ...client, plan: newPlan }
+            : client
+        )
+      )
+    } catch (error: any) {
+      console.error('Error al actualizar el plan:', error)
+      alert('Error al actualizar el plan del cliente')
     }
   }
 
@@ -367,6 +406,20 @@ const HomePage = () => {
                 </svg>
                 Nuevo cliente
               </motion.button>
+              
+              {/* Botón Importar Clientes */}
+              <motion.button
+                onClick={() => setShowImportModal(true)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-3 font-semibold text-lg"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Importar Clientes
+              </motion.button>
+              
               <motion.button
                 onClick={() => navigate('/exercises')}
                 whileHover={{ scale: 1.05 }}
@@ -464,8 +517,8 @@ const HomePage = () => {
               // Primero verificar si tienen categoría manual asignada
               const newClients = clients.filter(client => {
                 // Si tiene categoría manual, usar esa
-                if ((client as any).clientCategory === 'new') return true
-                if ((client as any).clientCategory === 'old') return false
+                if (client.clientCategory === 'new') return true
+                if (client.clientCategory === 'old') return false
                 // Si no tiene categoría manual, usar criterio de 30 días
                 if (!client.createdAt) return false
                 const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
@@ -475,8 +528,8 @@ const HomePage = () => {
               
               const oldClients = clients.filter(client => {
                 // Si tiene categoría manual, usar esa
-                if ((client as any).clientCategory === 'old') return true
-                if ((client as any).clientCategory === 'new') return false
+                if (client.clientCategory === 'old') return true
+                if (client.clientCategory === 'new') return false
                 // Si no tiene categoría manual, usar criterio de 30 días
                 if (!client.createdAt) return true
                 const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
@@ -484,7 +537,59 @@ const HomePage = () => {
                 return createdAt < thirtyDaysAgo
               })
               
-              const allClients = clients
+              // Ordenar clientes según el filtro seleccionado
+              let sortedClients = [...clients]
+              
+              if (sortBy !== 'none') {
+                sortedClients.sort((a, b) => {
+                  let comparison = 0
+                  
+                  switch (sortBy) {
+                    case 'name':
+                      comparison = a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+                      break
+                    case 'subscription':
+                      const aDate = a.subscriptionStartDate?.toDate 
+                        ? a.subscriptionStartDate.toDate() 
+                        : a.createdAt?.toDate 
+                        ? a.createdAt.toDate() 
+                        : a.subscriptionStartDate 
+                        ? new Date(a.subscriptionStartDate) 
+                        : a.createdAt 
+                        ? new Date(a.createdAt) 
+                        : new Date(0)
+                      const bDate = b.subscriptionStartDate?.toDate 
+                        ? b.subscriptionStartDate.toDate() 
+                        : b.createdAt?.toDate 
+                        ? b.createdAt.toDate() 
+                        : b.subscriptionStartDate 
+                        ? new Date(b.subscriptionStartDate) 
+                        : b.createdAt 
+                        ? new Date(b.createdAt) 
+                        : new Date(0)
+                      comparison = aDate.getTime() - bDate.getTime()
+                      break
+                    case 'payment':
+                      // Por ahora, ordenar por fecha de suscripción (preparado para futuro control de pagos)
+                      const aPayDate = a.subscriptionEndDate?.toDate 
+                        ? a.subscriptionEndDate.toDate() 
+                        : a.subscriptionEndDate 
+                        ? new Date(a.subscriptionEndDate) 
+                        : new Date(0)
+                      const bPayDate = b.subscriptionEndDate?.toDate 
+                        ? b.subscriptionEndDate.toDate() 
+                        : b.subscriptionEndDate 
+                        ? new Date(b.subscriptionEndDate) 
+                        : new Date(0)
+                      comparison = aPayDate.getTime() - bPayDate.getTime()
+                      break
+                  }
+                  
+                  return sortOrder === 'asc' ? comparison : -comparison
+                })
+              }
+              
+              const allClients = sortedClients
 
               return (
                 <>
@@ -492,7 +597,7 @@ const HomePage = () => {
                   {activeCategory === null ? (
                     <>
                       {/* Fichas grandes clickeables */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto mb-8">
                         {/* Ficha Clientes Nuevos */}
                         <motion.div
                           variants={cardVariants}
@@ -500,17 +605,17 @@ const HomePage = () => {
                           animate="visible"
                           whileHover={{ scale: 1.05, y: -5 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-green-600 to-green-800`}
+                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-green-600 to-green-800`}
                           onClick={() => setActiveCategory('new')}
                         >
                           <div className="text-center">
-                            <div className="text-5xl font-bold text-white mb-3">
+                            <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
                               {newClients.length}
                             </div>
-                            <div className="text-white font-semibold text-2xl mb-2">
+                            <div className="text-white font-semibold text-lg sm:text-xl mb-2">
                               Clientes Nuevos
                             </div>
-                            <div className="text-green-100 text-base mt-3">
+                            <div className="text-green-100 text-sm sm:text-base mt-2">
                               Haz clic para ver el listado
                             </div>
                           </div>
@@ -523,18 +628,43 @@ const HomePage = () => {
                           animate="visible"
                           whileHover={{ scale: 1.05, y: -5 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-8 sm:p-10 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-blue-600 to-blue-800`}
+                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-blue-600 to-blue-800`}
                           onClick={() => setActiveCategory('old')}
                         >
                           <div className="text-center">
-                            <div className="text-5xl font-bold text-white mb-3">
+                            <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
                               {oldClients.length}
                             </div>
-                            <div className="text-white font-semibold text-2xl mb-2">
+                            <div className="text-white font-semibold text-lg sm:text-xl mb-2">
                               Clientes Antiguos
                             </div>
-                            <div className="text-blue-100 text-base mt-3">
+                            <div className="text-blue-100 text-sm sm:text-base mt-2">
                               Haz clic para ver el listado
+                            </div>
+                          </div>
+                        </motion.div>
+
+                        {/* Ficha Crear Plan de Entreno */}
+                        <motion.div
+                          variants={cardVariants}
+                          initial="hidden"
+                          animate="visible"
+                          whileHover={{ scale: 1.05, y: -5 }}
+                          whileTap={{ scale: 0.95 }}
+                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-purple-600 to-purple-800`}
+                          onClick={() => navigate('/create-workout')}
+                        >
+                          <div className="text-center">
+                            <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
+                              <svg className="w-10 h-10 sm:w-12 sm:h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </div>
+                            <div className="text-white font-semibold text-lg sm:text-xl mb-2">
+                              Crear Plan de Entreno
+                            </div>
+                            <div className="text-purple-100 text-sm sm:text-base mt-2">
+                              Haz clic para crear
                             </div>
                           </div>
                         </motion.div>
@@ -649,7 +779,7 @@ const HomePage = () => {
                                   <div className="flex items-center gap-2">
                                     {isCoach && (
                                       <select
-                                        value={(client as any).clientCategory === 'old' ? 'old' : (client as any).clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
+                                        value={client.clientCategory === 'old' ? 'old' : client.clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
                                         onChange={(e) => {
                                           const newCategory = e.target.value as 'new' | 'old'
                                           handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
@@ -687,11 +817,21 @@ const HomePage = () => {
                               <div className={`mb-4 p-3 rounded-lg ${
                                 theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
                               }`}>
-                                <p className={`text-sm font-semibold ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>
-                                  {client.plan}
-                                </p>
+                                <select
+                                  value={client.plan}
+                                  onChange={(e) => handlePlanChange(e, client.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={`w-full text-sm font-semibold rounded-lg px-2 py-1 border transition-colors ${
+                                    theme === 'dark'
+                                      ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                                >
+                                  <option value="Plan Mensual - Nivel 1">Plan Mensual - Nivel 1</option>
+                                  <option value="Plan Mensual - Nivel 2">Plan Mensual - Nivel 2</option>
+                                  <option value="Plan Mensual - Nivel 3">Plan Mensual - Nivel 3</option>
+                                  <option value="Plan Personalizado">Plan Personalizado</option>
+                                </select>
                               </div>
 
                               {/* Suscripción */}
@@ -816,7 +956,7 @@ const HomePage = () => {
                                   <div className="flex items-center gap-2">
                                     {isCoach && (
                                       <select
-                                        value={(client as any).clientCategory === 'old' ? 'old' : (client as any).clientCategory === 'new' ? 'new' : (oldClients.includes(client) ? 'old' : 'new')}
+                                        value={client.clientCategory === 'old' ? 'old' : client.clientCategory === 'new' ? 'new' : (oldClients.includes(client) ? 'old' : 'new')}
                                         onChange={(e) => {
                                           const newCategory = e.target.value as 'new' | 'old'
                                           handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
@@ -854,11 +994,21 @@ const HomePage = () => {
                               <div className={`mb-4 p-3 rounded-lg ${
                                 theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
                               }`}>
-                                <p className={`text-sm font-semibold ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>
-                                  {client.plan}
-                                </p>
+                                <select
+                                  value={client.plan}
+                                  onChange={(e) => handlePlanChange(e, client.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={`w-full text-sm font-semibold rounded-lg px-2 py-1 border transition-colors ${
+                                    theme === 'dark'
+                                      ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                                >
+                                  <option value="Plan Mensual - Nivel 1">Plan Mensual - Nivel 1</option>
+                                  <option value="Plan Mensual - Nivel 2">Plan Mensual - Nivel 2</option>
+                                  <option value="Plan Mensual - Nivel 3">Plan Mensual - Nivel 3</option>
+                                  <option value="Plan Personalizado">Plan Personalizado</option>
+                                </select>
                               </div>
 
                               {/* Suscripción */}
@@ -902,22 +1052,85 @@ const HomePage = () => {
                   {/* Listado completo de todos los clientes */}
                   {activeCategory === null && (
                     <div className="mb-8 mt-12">
-                      <motion.h3 
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.8 }}
-                        className={`text-2xl font-bold mb-4 ${
-                          theme === 'dark' ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        Todos los Clientes ({allClients.length})
-                      </motion.h3>
-                    <div className={`${
-                      viewMode === 'grid' 
-                        ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                        : 'space-y-3'
-                    }`}>
-                      {allClients.map((client, index) => (
+                      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+                        <motion.h3 
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.8 }}
+                          className={`text-2xl font-bold ${
+                            theme === 'dark' ? 'text-white' : 'text-gray-900'
+                          }`}
+                        >
+                          Todos los Clientes ({allClients.length})
+                        </motion.h3>
+                        
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {/* Botón Colapsar/Expandir */}
+                          <button
+                            onClick={() => setIsAllClientsCollapsed(!isAllClientsCollapsed)}
+                            className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
+                              theme === 'dark'
+                                ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                            }`}
+                          >
+                            <svg 
+                              className={`w-5 h-5 transition-transform ${isAllClientsCollapsed ? '' : 'rotate-180'}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                            {isAllClientsCollapsed ? 'Expandir' : 'Colapsar'}
+                          </button>
+                          
+                          {/* Filtro de Ordenamiento */}
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={sortBy}
+                              onChange={(e) => {
+                                const newSort = e.target.value as 'name' | 'subscription' | 'payment' | 'none'
+                                setSortBy(newSort)
+                                if (newSort === 'none') {
+                                  setSortOrder('asc')
+                                }
+                              }}
+                              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                                theme === 'dark'
+                                  ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+                              }`}
+                            >
+                              <option value="none">Sin ordenar</option>
+                              <option value="name">Alfabético</option>
+                              <option value="subscription">Tiempo suscrito</option>
+                              <option value="payment">Próximo a pagar</option>
+                            </select>
+                            
+                            {sortBy !== 'none' && (
+                              <button
+                                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                                  theme === 'dark'
+                                    ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                                }`}
+                                title={sortOrder === 'asc' ? 'Orden ascendente' : 'Orden descendente'}
+                              >
+                                {sortOrder === 'asc' ? '↑' : '↓'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    {!isAllClientsCollapsed && (
+                      <div className={`${
+                        viewMode === 'grid' 
+                          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+                          : 'space-y-3'
+                      }`}>
+                        {allClients.map((client, index) => (
                         <motion.div
                           key={client.id}
                           variants={cardVariants}
@@ -990,7 +1203,7 @@ const HomePage = () => {
                                 <div className="flex items-center gap-2">
                                   {isCoach && (
                                     <select
-                                      value={(client as any).clientCategory === 'old' ? 'old' : (client as any).clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
+                                      value={client.clientCategory === 'old' ? 'old' : client.clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
                                       onChange={(e) => {
                                         const newCategory = e.target.value as 'new' | 'old'
                                         handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
@@ -1034,11 +1247,42 @@ const HomePage = () => {
                                 {client.plan}
                               </p>
                             </div>
+
+                            {/* Suscripción */}
+                            {(client.subscriptionStartDate || client.createdAt) && (
+                              <div className={`mb-3 p-2 rounded-lg ${
+                                theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
+                              }`}>
+                                <p className={`text-xs font-semibold ${
+                                  theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
+                                }`}>
+                                  Suscrito desde el día {(() => {
+                                    const startDate = client.subscriptionStartDate?.toDate 
+                                      ? client.subscriptionStartDate.toDate() 
+                                      : client.createdAt?.toDate 
+                                      ? client.createdAt.toDate() 
+                                      : client.subscriptionStartDate 
+                                      ? new Date(client.subscriptionStartDate) 
+                                      : client.createdAt 
+                                      ? new Date(client.createdAt) 
+                                      : new Date()
+                                    return startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                  })()}
+                                  {client.subscriptionEndDate ? `, hasta el día ${(() => {
+                                    const endDate = client.subscriptionEndDate?.toDate 
+                                      ? client.subscriptionEndDate.toDate() 
+                                      : new Date(client.subscriptionEndDate)
+                                    return endDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                  })()}` : ''}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </motion.div>
                       ))}
+                      </div>
+                    )}
                     </div>
-                  </div>
                   )}
                 </>
               )
@@ -1144,6 +1388,12 @@ const HomePage = () => {
       <AddClientModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
+        onSuccess={handleClientAdded}
+      />
+      
+      <ImportClientsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
         onSuccess={handleClientAdded}
       />
 

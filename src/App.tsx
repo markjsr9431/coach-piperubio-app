@@ -9,6 +9,8 @@ import WorkoutPage from './pages/WorkoutPage'
 import ClientWorkoutPage from './pages/ClientWorkoutPage'
 import ClientProfilePage from './pages/ClientProfilePage'
 import ExercisesPage from './pages/ExercisesPage'
+import CreateWorkoutPage from './pages/CreateWorkoutPage'
+import ProgressChartsPage from './pages/ProgressChartsPage'
 import LoginPage from './pages/Login'
 
 // Componente para proteger rutas que requieren autenticación
@@ -80,6 +82,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ExercisesPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/create-workout" 
+        element={
+          <ProtectedRoute>
+            <CreateWorkoutPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/client/:clientId/progress" 
+        element={
+          <ProtectedRoute>
+            <ProgressChartsPage />
           </ProtectedRoute>
         } 
       />
