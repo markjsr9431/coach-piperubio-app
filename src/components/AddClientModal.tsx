@@ -148,7 +148,10 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
 
   const handleClose = () => {
     setFormData({
-      name: '',
+      firstName: '',
+      secondName: '',
+      firstLastName: '',
+      secondLastName: '',
       email: '',
       plan: 'Plan Mensual - Nivel 2',
       phone: '',

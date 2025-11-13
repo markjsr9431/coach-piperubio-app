@@ -226,17 +226,6 @@ const ClientWorkoutPage = () => {
     loadWorkouts()
   }
 
-  const toggleDaySelection = (dayIndex: number) => {
-    setSelectedDays(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(dayIndex)) {
-        newSet.delete(dayIndex)
-      } else {
-        newSet.add(dayIndex)
-      }
-      return newSet
-    })
-  }
 
   const handleDeleteSelectedDays = async () => {
     if (selectedDays.size === 0 || !clientId) return
@@ -348,17 +337,6 @@ const ClientWorkoutPage = () => {
     }
   }
 
-  const formatWorkoutDuration = (seconds: number): string => {
-    if (seconds < 60) {
-      return `${seconds} seg`
-    }
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    if (remainingSeconds === 0) {
-      return `${minutes} min`
-    }
-    return `${minutes} min ${remainingSeconds} seg`
-  }
 
   const containerVariants = {
     hidden: { opacity: 0 },
