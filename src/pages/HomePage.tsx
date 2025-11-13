@@ -40,6 +40,20 @@ const HomePage = () => {
   const { theme } = useTheme()
   const { t } = useLanguage()
   const { user } = useAuth()
+
+  // Función helper para formatear nombres: mostrar solo primer nombre y primer apellido
+  const formatClientName = (fullName: string): string => {
+    if (!fullName) return ''
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length <= 2) return fullName
+    // Asumir formato: primer nombre, segundo nombre (opcional), primer apellido, segundo apellido (opcional)
+    // Si hay 3 partes: nombre, nombre, apellido -> mostrar primera y tercera
+    if (parts.length === 3) {
+      return `${parts[0]} ${parts[2]}`
+    }
+    // Para 4+ partes, primer nombre es parts[0], primer apellido es parts[2]
+    return `${parts[0]} ${parts[2]}`
+  }
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -394,7 +408,7 @@ const HomePage = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className={`text-xl ${
+              className={`text-base sm:text-xl ${
                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
               }`}
             >
@@ -427,7 +441,7 @@ const HomePage = () => {
                 onClick={handleAddClient}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-primary-600 to-primary-800 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-3 font-semibold text-lg"
+                className="bg-gradient-to-r from-primary-600 to-primary-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -440,7 +454,7 @@ const HomePage = () => {
                 onClick={() => setShowImportModal(true)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-3 font-semibold text-lg"
+                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -452,7 +466,7 @@ const HomePage = () => {
                 onClick={() => navigate('/exercises')}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-3 font-semibold text-lg"
+                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -771,28 +785,16 @@ const HomePage = () => {
                               </div>
                             )}
                             
-                            {/* Avatar o Foto del Cliente */}
-                            {(client.avatar || client.profilePhoto) && (
-                              <div className="mb-4 flex justify-center">
-                                {client.profilePhoto ? (
-                                  <img
-                                    src={client.profilePhoto}
-                                    alt={client.name}
-                                    className="w-20 h-20 rounded-full object-cover border-4 border-primary-500"
-                                  />
-                                ) : client.avatar ? (
-                                  <div className="text-6xl">{client.avatar}</div>
-                                ) : null}
-                              </div>
-                            )}
-                            
                             <div>
                               <div className="flex items-start justify-between mb-4">
                                 <div>
-                                  <h3 className={`text-2xl font-bold mb-1 ${
-                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                  }`}>
-                                    {client.name}
+                                  <h3 
+                                    className={`text-xl sm:text-2xl font-bold mb-2 line-clamp-2 ${
+                                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                    }`}
+                                    title={client.name}
+                                  >
+                                    {formatClientName(client.name)}
                                   </h3>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -803,7 +805,7 @@ const HomePage = () => {
                                       ? 'bg-green-500/20 text-green-400 border border-green-500/50'
                                       : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                                   }`}>
-                                    {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive'))}
+                                    {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
                                   </span>
                                   {/* Dropdown de categoría y botón eliminar - Solo para coach */}
                                   <div className="flex items-center gap-2">
@@ -865,34 +867,6 @@ const HomePage = () => {
                               </div>
 
                               {/* Suscripción */}
-                              {(client.subscriptionStartDate || client.createdAt) && (
-                                <div className={`mb-3 p-2 rounded-lg ${
-                                  theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
-                                }`}>
-                                  <p className={`text-xs font-semibold ${
-                                    theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
-                                  }`}>
-                                    Suscrito desde el día {(() => {
-                                      const startDate = client.subscriptionStartDate?.toDate 
-                                        ? client.subscriptionStartDate.toDate() 
-                                        : client.createdAt?.toDate 
-                                        ? client.createdAt.toDate() 
-                                        : client.subscriptionStartDate 
-                                        ? new Date(client.subscriptionStartDate) 
-                                        : client.createdAt 
-                                        ? new Date(client.createdAt) 
-                                        : new Date()
-                                      return startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                    })()}
-                                    {client.subscriptionEndDate ? `, hasta el día ${(() => {
-                                      const endDate = client.subscriptionEndDate?.toDate 
-                                        ? client.subscriptionEndDate.toDate() 
-                                        : new Date(client.subscriptionEndDate)
-                                      return endDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                    })()}` : ''}
-                                  </p>
-                                </div>
-                              )}
                             </div>
                           </motion.div>
                         ))}
@@ -926,7 +900,7 @@ const HomePage = () => {
                             transition={{ delay: 0.8 + (newClients.length * 0.1) + index * 0.1 }}
                             whileHover={{ scale: 1.02, y: -5 }}
                             whileTap={{ scale: 0.98 }}
-                            className={`rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
+                            className={`rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between min-h-[280px] sm:min-h-[320px] ${
                               theme === 'dark' 
                                 ? 'bg-slate-800/80 border border-slate-700' 
                                 : 'bg-white border border-gray-200'
@@ -950,28 +924,16 @@ const HomePage = () => {
                               </div>
                             )}
                             
-                            {/* Avatar o Foto del Cliente */}
-                            {(client.avatar || client.profilePhoto) && (
-                              <div className="mb-4 flex justify-center">
-                                {client.profilePhoto ? (
-                                  <img
-                                    src={client.profilePhoto}
-                                    alt={client.name}
-                                    className="w-20 h-20 rounded-full object-cover border-4 border-primary-500"
-                                  />
-                                ) : client.avatar ? (
-                                  <div className="text-6xl">{client.avatar}</div>
-                                ) : null}
-                              </div>
-                            )}
-                            
                             <div>
                               <div className="flex items-start justify-between mb-4">
                                 <div>
-                                  <h3 className={`text-2xl font-bold mb-1 ${
-                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                  }`}>
-                                    {client.name}
+                                  <h3 
+                                    className={`text-xl sm:text-2xl font-bold mb-2 line-clamp-2 ${
+                                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                    }`}
+                                    title={client.name}
+                                  >
+                                    {formatClientName(client.name)}
                                   </h3>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -980,7 +942,7 @@ const HomePage = () => {
                                       ? 'bg-green-500/20 text-green-400 border border-green-500/50'
                                       : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                                   }`}>
-                                    {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
+                                    {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
                                   </span>
                                   {/* Dropdown de categoría y botón eliminar - Solo para coach */}
                                   <div className="flex items-center gap-2">
@@ -1042,34 +1004,6 @@ const HomePage = () => {
                               </div>
 
                               {/* Suscripción */}
-                              {(client.subscriptionStartDate || client.createdAt) && (
-                                <div className={`mb-3 p-2 rounded-lg ${
-                                  theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
-                                }`}>
-                                  <p className={`text-xs font-semibold ${
-                                    theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
-                                  }`}>
-                                    Suscrito desde el día {(() => {
-                                      const startDate = client.subscriptionStartDate?.toDate 
-                                        ? client.subscriptionStartDate.toDate() 
-                                        : client.createdAt?.toDate 
-                                        ? client.createdAt.toDate() 
-                                        : client.subscriptionStartDate 
-                                        ? new Date(client.subscriptionStartDate) 
-                                        : client.createdAt 
-                                        ? new Date(client.createdAt) 
-                                        : new Date()
-                                      return startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                    })()}
-                                    {client.subscriptionEndDate ? `, hasta el día ${(() => {
-                                      const endDate = client.subscriptionEndDate?.toDate 
-                                        ? client.subscriptionEndDate.toDate() 
-                                        : new Date(client.subscriptionEndDate)
-                                      return endDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                    })()}` : ''}
-                                  </p>
-                                </div>
-                              )}
                             </div>
                           </motion.div>
                         ))}
@@ -1087,7 +1021,7 @@ const HomePage = () => {
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: 0.8 }}
-                          className={`text-2xl font-bold ${
+                          className={`text-xl sm:text-2xl font-bold ${
                             theme === 'dark' ? 'text-white' : 'text-gray-900'
                           }`}
                         >
@@ -1169,10 +1103,10 @@ const HomePage = () => {
                           transition={{ delay: 0.9 + index * 0.05 }}
                           whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
                           whileTap={{ scale: 0.98 }}
-                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
+                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between ${
                             viewMode === 'list' 
-                              ? 'p-3' 
-                              : 'p-6'
+                              ? 'p-3 min-h-[200px]' 
+                              : 'p-4 sm:p-6 min-h-[280px] sm:min-h-[320px]'
                           } ${
                             theme === 'dark' 
                               ? 'bg-slate-800/80 border border-slate-700' 
@@ -1196,29 +1130,16 @@ const HomePage = () => {
                               />
                             </div>
                           )}
-                          
-                          {/* Avatar o Foto del Cliente */}
-                          {(client.avatar || client.profilePhoto) && (
-                            <div className="mb-4 flex justify-center">
-                              {client.profilePhoto ? (
-                                <img
-                                  src={client.profilePhoto}
-                                  alt={client.name}
-                                  className="w-20 h-20 rounded-full object-cover border-4 border-primary-500"
-                                />
-                              ) : client.avatar ? (
-                                <div className="text-6xl">{client.avatar}</div>
-                              ) : null}
-                            </div>
-                          )}
-                          
                           <div>
                             <div className="flex items-start justify-between mb-4">
                               <div>
-                                <h3 className={`text-2xl font-bold mb-1 ${
-                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                }`}>
-                                  {client.name}
+                                <h3 
+                                  className={`text-xl sm:text-2xl font-bold mb-1 line-clamp-2 ${
+                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                  }`}
+                                  title={client.name}
+                                >
+                                  {formatClientName(client.name)}
                                 </h3>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1229,7 +1150,7 @@ const HomePage = () => {
                                     ? 'bg-green-500/20 text-green-400 border border-green-500/50'
                                     : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                                 }`}>
-                                  {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive'))}
+                                  {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
                                 </span>
                                 {/* Dropdown de categoría y botón eliminar - Solo para coach */}
                                 <div className="flex items-center gap-2">
@@ -1281,34 +1202,6 @@ const HomePage = () => {
                             </div>
 
                             {/* Suscripción */}
-                            {(client.subscriptionStartDate || client.createdAt) && (
-                              <div className={`mb-3 p-2 rounded-lg ${
-                                theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
-                              }`}>
-                                <p className={`text-xs font-semibold ${
-                                  theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
-                                }`}>
-                                  Suscrito desde el día {(() => {
-                                    const startDate = client.subscriptionStartDate?.toDate 
-                                      ? client.subscriptionStartDate.toDate() 
-                                      : client.createdAt?.toDate 
-                                      ? client.createdAt.toDate() 
-                                      : client.subscriptionStartDate 
-                                      ? new Date(client.subscriptionStartDate) 
-                                      : client.createdAt 
-                                      ? new Date(client.createdAt) 
-                                      : new Date()
-                                    return startDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                  })()}
-                                  {client.subscriptionEndDate ? `, hasta el día ${(() => {
-                                    const endDate = client.subscriptionEndDate?.toDate 
-                                      ? client.subscriptionEndDate.toDate() 
-                                      : new Date(client.subscriptionEndDate)
-                                    return endDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                                  })()}` : ''}
-                                </p>
-                              </div>
-                            )}
                           </div>
                         </motion.div>
                       ))}

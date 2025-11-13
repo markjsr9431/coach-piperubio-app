@@ -237,7 +237,7 @@ const ProgressChartsPage = () => {
               </svg>
               Volver
             </button>
-            <h1 className={`text-4xl font-bold mb-2 ${
+            <h1 className={`text-2xl sm:text-4xl font-bold mb-2 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
               Gráficas de Progreso
@@ -254,7 +254,7 @@ const ProgressChartsPage = () => {
             <div className={`mb-6 p-6 rounded-xl ${
               theme === 'dark' ? 'bg-slate-800/50' : 'bg-white/50'
             }`}>
-              <h2 className={`text-lg font-bold mb-4 ${
+              <h2 className={`text-base sm:text-lg font-bold mb-3 sm:mb-4 ${
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
               }`}>
                 Estadísticas de Entrenamiento
@@ -266,7 +266,7 @@ const ProgressChartsPage = () => {
                   <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
                     Total de Días Entrenados
                   </p>
-                  <p className={`text-2xl font-bold mt-1 ${
+                  <p className={`text-xl sm:text-2xl font-bold mt-1 ${
                     theme === 'dark' ? 'text-white' : 'text-gray-900'
                   }`}>
                     {stats.totalDays}
@@ -278,7 +278,7 @@ const ProgressChartsPage = () => {
                   <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
                     Racha Actual
                   </p>
-                  <p className={`text-2xl font-bold mt-1 ${
+                  <p className={`text-xl sm:text-2xl font-bold mt-1 ${
                     theme === 'dark' ? 'text-white' : 'text-gray-900'
                   }`}>
                     {stats.currentStreak} {stats.currentStreak === 1 ? 'día' : 'días'}
@@ -290,7 +290,7 @@ const ProgressChartsPage = () => {
                   <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
                     Mejor Racha
                   </p>
-                  <p className={`text-2xl font-bold mt-1 ${
+                  <p className={`text-xl sm:text-2xl font-bold mt-1 ${
                     theme === 'dark' ? 'text-white' : 'text-gray-900'
                   }`}>
                     {stats.bestStreak} {stats.bestStreak === 1 ? 'día' : 'días'}
@@ -408,7 +408,7 @@ const ProgressChartsPage = () => {
               ? 'bg-slate-800/80 border border-slate-700' 
               : 'bg-white border border-gray-200'
           }`}>
-            <h2 className={`text-xl font-bold mb-4 ${
+            <h2 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
               Datos de Progreso ({filteredData.length} registros)
@@ -519,7 +519,7 @@ const ProgressChartsPage = () => {
             {/* Gráfico de Barras Simple */}
             {filteredData.length > 0 && (
               <div className="mt-8">
-                <h2 className={`text-xl font-bold mb-4 ${
+                <h2 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
                   Progreso Visual

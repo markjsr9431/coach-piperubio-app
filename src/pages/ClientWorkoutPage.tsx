@@ -11,6 +11,7 @@ import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 import ProgressTracker from '../components/ProgressTracker'
 import RMAndPRModal from '../components/RMAndPRModal'
+import WorkoutCalendar from '../components/WorkoutCalendar'
 
 const ClientWorkoutPage = () => {
   const navigate = useNavigate()
@@ -33,7 +34,6 @@ const ClientWorkoutPage = () => {
   } | null>(null)
   const [currentDayIndex, setCurrentDayIndex] = useState<number | null>(null)
   const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
-  const [isWorkoutDaysCollapsed, setIsWorkoutDaysCollapsed] = useState(false)
   const [workoutDurations, setWorkoutDurations] = useState<{ [dayIndex: number]: number }>({})
   const [workoutDates, setWorkoutDates] = useState<{ [dayIndex: number]: Date }>({})
 
@@ -435,24 +435,10 @@ const ClientWorkoutPage = () => {
                   </svg>
                   Información del Cliente
                 </button>
-                <button
-                  onClick={() => setIsWorkoutDaysCollapsed(!isWorkoutDaysCollapsed)}
-                  className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
-                >
-                  <svg 
-                    className={`w-5 h-5 transition-transform ${isWorkoutDaysCollapsed ? '' : 'rotate-180'}`}
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                  {isWorkoutDaysCollapsed ? 'Expandir Días' : 'Colapsar Días'}
-                </button>
                 {!selectionMode ? (
                   <button
                     onClick={() => setSelectionMode(true)}
-                    className="px-6 py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                    className="px-3 py-1.5 sm:px-6 sm:py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-base"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -494,15 +480,16 @@ const ClientWorkoutPage = () => {
             </p>
           </div>
         ) : (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className={isCoach ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" : "w-full max-w-2xl mx-auto"}
-          >
-            {/* Para clientes, mostrar solo el día actual */}
+          <>
             {!isCoach ? (
-              currentDayIndex !== null ? (
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="w-full max-w-2xl mx-auto"
+              >
+                {/* Para clientes, mostrar solo el día actual */}
+                {currentDayIndex !== null ? (
                 (() => {
                   const workout = clientWorkouts[currentDayIndex]
                   const dayName = workout.day.split(' - ')[1]?.split(' (')[0]
@@ -524,28 +511,33 @@ const ClientWorkoutPage = () => {
                       </h2>
                       
                       {/* Fichas cuadradas lado a lado */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-4 w-full max-w-2xl mx-auto">
                         {/* Ficha del entrenamiento */}
                         <motion.div
                           key={currentDayIndex}
                           variants={cardVariants}
                           initial="hidden"
                           animate="visible"
-                          className={`relative rounded-xl p-2 sm:p-3 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                          className={`relative rounded-xl p-1.5 sm:p-3 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
                             isFeedbackSubmitted 
                               ? 'opacity-60 cursor-not-allowed' 
                               : 'hover:shadow-2xl cursor-pointer'
                           }`}
                         >
                           <div
-                            onClick={() => !isFeedbackSubmitted && handleDayClick(currentDayIndex)}
+                            onClick={() => {
+                              // El botón permanece funcional hasta que se envíe la retroalimentación
+                              if (!isFeedbackSubmitted) {
+                                handleDayClick(currentDayIndex)
+                              }
+                            }}
                             className={isFeedbackSubmitted ? 'cursor-not-allowed' : 'cursor-pointer w-full h-full flex flex-col items-center justify-center'}
                           >
                             <div className="text-center">
-                              <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
+                              <div className="text-2xl sm:text-4xl font-bold text-white mb-2">
                                 {currentDayIndex + 1}
                               </div>
-                              <div className="text-white font-semibold text-base sm:text-lg mb-1">
+                              <div className="text-white font-semibold text-sm sm:text-lg mb-1">
                                 {workout.day.split(' - ')[1]?.replace(' (Opcional)', '')}
                               </div>
                               {isSaturday && (
@@ -571,7 +563,7 @@ const ClientWorkoutPage = () => {
                             variants={cardVariants}
                             initial="hidden"
                             animate="visible"
-                            className={`relative rounded-xl p-2 sm:p-3 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                            className={`relative rounded-xl p-1.5 sm:p-3 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
                               theme === 'dark'
                                 ? 'bg-slate-700 hover:bg-slate-600'
                                 : 'bg-white hover:bg-gray-100 border border-gray-300'
@@ -579,17 +571,17 @@ const ClientWorkoutPage = () => {
                             onClick={() => setShowRMAndPRModal(true)}
                           >
                             <div className="text-center">
-                              <div className={`text-3xl sm:text-4xl font-bold mb-2 ${
+                              <div className={`text-2xl sm:text-4xl font-bold mb-2 ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
                               }`}>
                                 RM
                               </div>
-                              <div className={`text-lg sm:text-xl font-semibold mb-1 ${
+                              <div className={`text-base sm:text-xl font-semibold mb-1 ${
                                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                               }`}>
                                 y
                               </div>
-                              <div className={`text-3xl sm:text-4xl font-bold ${
+                              <div className={`text-2xl sm:text-4xl font-bold ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
                               }`}>
                                 PR
@@ -616,126 +608,21 @@ const ClientWorkoutPage = () => {
                     No hay entrenamiento programado para hoy
                   </p>
                 </div>
-              )
+              )}
+              </motion.div>
             ) : (
-              // Para el coach, mostrar todos los días
-              !isWorkoutDaysCollapsed && clientWorkouts.map((workout, index) => {
-              const isSelected = selectedDays.has(index)
-              return (
-                <motion.div
-                  key={index}
-                  variants={cardVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className={`relative rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all ${
-                    selectionMode
-                      ? isSelected
-                        ? 'bg-gradient-to-br from-green-600 to-green-800 ring-4 ring-green-400'
-                        : 'bg-gradient-to-br from-primary-600 to-primary-800 opacity-70'
-                      : 'bg-gradient-to-br from-primary-600 to-primary-800'
-                  }`}
-                >
-                  {selectionMode ? (
-                    <div
-                      onClick={() => toggleDaySelection(index)}
-                      className="cursor-pointer"
-                    >
-                      <div className="text-center">
-                        <div className="flex items-center justify-center mb-2">
-                          {isSelected && (
-                            <svg className="w-8 h-8 text-white mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          <div className="text-3xl font-bold text-white">
-                            {index + 1}
-                          </div>
-                        </div>
-                        <div className="text-white font-semibold text-lg">
-                          {workout.day.split(' - ')[1]}
-                        </div>
-                        {workoutDates[index] && (
-                          <div className="text-primary-200 text-xs mt-1">
-                            {workoutDates[index].toLocaleDateString('es-ES', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric'
-                            })}
-                          </div>
-                        )}
-                        <div className="text-primary-100 text-sm mt-2">
-                          {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div
-                        onClick={() => handleDayClick(index)}
-                        className="cursor-pointer"
-                      >
-                        <div className="text-center">
-                          <div className="text-3xl font-bold text-white mb-2">
-                            Día {index + 1}
-                          </div>
-                          {workoutDates[index] && (
-                            <div className="text-primary-200 text-xs mb-1">
-                              {workoutDates[index].toLocaleDateString('es-ES', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric'
-                              })}
-                            </div>
-                          )}
-                          <div className="text-white font-semibold text-lg">
-                            {workout.day.split(' - ')[1]}
-                          </div>
-                          <div className="text-primary-100 text-sm mt-2">
-                            {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
-                          </div>
-                          {workoutDurations[index] && (
-                            <div className="text-primary-200 text-xs mt-1 font-semibold">
-                              ⏱️ {formatWorkoutDuration(workoutDurations[index])}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {isCoach && (
-                        <div className="absolute top-2 right-2 flex gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleEditWorkout(index)
-                            }}
-                            className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                            title="Editar entrenamiento"
-                          >
-                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          {workoutDurations[index] && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleResetDay(index)
-                              }}
-                              className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
-                              title="Restablecer día"
-                            >
-                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </motion.div>
-              )
-            }))}
-          </motion.div>
+              // Para el coach, mostrar siempre el calendario
+              <WorkoutCalendar
+                workouts={clientWorkouts}
+                workoutDates={workoutDates}
+                workoutDurations={workoutDurations}
+                onDayClick={handleDayClick}
+                onEditWorkout={isCoach ? handleEditWorkout : undefined}
+                onResetDay={isCoach ? handleResetDay : undefined}
+                isCoach={isCoach}
+              />
+            )}
+          </>
         )}
         </motion.div>
       </div>

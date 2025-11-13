@@ -16,12 +16,21 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
   const { theme } = useTheme()
   const { t } = useLanguage()
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    secondName: '',
+    firstLastName: '',
+    secondLastName: '',
     email: '',
     plan: 'Plan Mensual - Nivel 2',
     phone: '',
     password: ''
   })
+
+  // Función helper para combinar nombres
+  const combineName = (firstName: string, secondName: string, firstLastName: string, secondLastName: string): string => {
+    const parts = [firstName, secondName, firstLastName, secondLastName].filter(Boolean)
+    return parts.join(' ')
+  }
   const [useCustomPassword, setUseCustomPassword] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -78,8 +87,9 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
       const createdClientId = userCredential.user.uid
 
       // Guardar información del cliente en Firestore
+      const fullName = combineName(formData.firstName, formData.secondName, formData.firstLastName, formData.secondLastName)
       await setDoc(doc(db, 'clients', createdClientId), {
-        name: formData.name,
+        name: fullName,
         email: formData.email.toLowerCase(),
         phone: formData.phone || '',
         plan: formData.plan,
@@ -213,17 +223,17 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
 
                   {/* Form */}
                   <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    {/* Nombre */}
+                    {/* Primer Nombre */}
                     <div>
                       <label className={`block text-sm font-semibold mb-2 ${
                         theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                       }`}>
-                        {t('modal.addClient.name')} *
+                        Primer Nombre *
                       </label>
                       <input
                         type="text"
-                        name="name"
-                        value={formData.name}
+                        name="firstName"
+                        value={formData.firstName}
                         onChange={handleInputChange}
                         required
                         className={`w-full px-4 py-3 rounded-lg border transition-colors ${
@@ -231,7 +241,71 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                             ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
                             : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
                         } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                        placeholder={t('modal.addClient.namePlaceholder')}
+                        placeholder="Ej: Juan"
+                      />
+                    </div>
+
+                    {/* Segundo Nombre */}
+                    <div>
+                      <label className={`block text-sm font-semibold mb-2 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Segundo Nombre
+                      </label>
+                      <input
+                        type="text"
+                        name="secondName"
+                        value={formData.secondName}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                          theme === 'dark'
+                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                        placeholder="Ej: Carlos (opcional)"
+                      />
+                    </div>
+
+                    {/* Primer Apellido */}
+                    <div>
+                      <label className={`block text-sm font-semibold mb-2 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Primer Apellido *
+                      </label>
+                      <input
+                        type="text"
+                        name="firstLastName"
+                        value={formData.firstLastName}
+                        onChange={handleInputChange}
+                        required
+                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                          theme === 'dark'
+                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                        placeholder="Ej: Pérez"
+                      />
+                    </div>
+
+                    {/* Segundo Apellido */}
+                    <div>
+                      <label className={`block text-sm font-semibold mb-2 ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Segundo Apellido
+                      </label>
+                      <input
+                        type="text"
+                        name="secondLastName"
+                        value={formData.secondLastName}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                          theme === 'dark'
+                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                        placeholder="Ej: González (opcional)"
                       />
                     </div>
 

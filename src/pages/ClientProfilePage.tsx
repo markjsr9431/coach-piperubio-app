@@ -20,7 +20,10 @@ const ClientProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    secondName: '',
+    firstLastName: '',
+    secondLastName: '',
     email: '',
     phone: '',
     cedula: '',
@@ -33,6 +36,34 @@ const ClientProfilePage = () => {
     paymentFrequency: '' as 'mensual' | 'trimestral' | 'cuotas' | 'dias' | 'por_clases' | '',
     otherPaymentMethod: ''
   })
+
+  // Función helper para combinar nombres
+  const combineName = (firstName: string, secondName: string, firstLastName: string, secondLastName: string): string => {
+    const parts = [firstName, secondName, firstLastName, secondLastName].filter(Boolean)
+    return parts.join(' ')
+  }
+
+  // Función helper para separar nombre completo en partes
+  const splitName = (fullName: string): { firstName: string; secondName: string; firstLastName: string; secondLastName: string } => {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) {
+      return { firstName: '', secondName: '', firstLastName: '', secondLastName: '' }
+    } else if (parts.length === 1) {
+      return { firstName: parts[0], secondName: '', firstLastName: '', secondLastName: '' }
+    } else if (parts.length === 2) {
+      return { firstName: parts[0], secondName: '', firstLastName: parts[1], secondLastName: '' }
+    } else if (parts.length === 3) {
+      return { firstName: parts[0], secondName: '', firstLastName: parts[1], secondLastName: parts[2] }
+    } else {
+      // Si tiene 4 o más partes, asumir: primer nombre, segundo nombre, primer apellido, segundo apellido
+      return { 
+        firstName: parts[0], 
+        secondName: parts[1], 
+        firstLastName: parts[2], 
+        secondLastName: parts.slice(3).join(' ') 
+      }
+    }
+  }
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoBase64, setPhotoBase64] = useState<string | null>(null)
   const [photoRemoved, setPhotoRemoved] = useState(false)
@@ -102,7 +133,7 @@ const ClientProfilePage = () => {
             : null
 
           setFormData({
-            name: data.name || '',
+            ...splitName(data.name || ''),
             email: data.email || '',
             phone: data.phone || '',
             cedula: data.cedula || '',
@@ -289,7 +320,12 @@ const ClientProfilePage = () => {
       
       if (clientDoc.exists()) {
         const clientData = clientDoc.data()
-        const updatedName = formData.name.trim()
+        const updatedName = combineName(
+          formData.firstName.trim(),
+          formData.secondName.trim(),
+          formData.firstLastName.trim(),
+          formData.secondLastName.trim()
+        )
         
         const subscriptionStartDate = formData.subscriptionStartDate 
           ? new Date(formData.subscriptionStartDate) 
@@ -315,14 +351,15 @@ const ClientProfilePage = () => {
           updatedBy: user?.email || ''
         })
 
-        // Si el cliente tiene una cuenta de Auth asociada (mismo email), actualizar displayName
+        // Actualizar displayName y photoURL si el usuario actual es el cliente
         if (clientData.email && auth.currentUser && auth.currentUser.email?.toLowerCase() === clientData.email.toLowerCase()) {
           try {
             await updateProfile(auth.currentUser, {
-              displayName: updatedName
+              displayName: updatedName,
+              photoURL: photoUrl || undefined
             })
           } catch (error) {
-            console.error('Error updating Auth displayName:', error)
+            console.error('Error updating Auth profile:', error)
             // Continuar aunque falle la actualización en Auth
           }
         }
@@ -554,7 +591,7 @@ const ClientProfilePage = () => {
       
       // Información Personal
       csvRows.push('INFORMACIÓN PERSONAL')
-      csvRows.push('Nombre,' + (formData.name || ''))
+      csvRows.push('Nombre,' + (combineName(formData.firstName, formData.secondName, formData.firstLastName, formData.secondLastName) || ''))
       csvRows.push('Email,' + (formData.email || ''))
       csvRows.push('Teléfono,' + (formData.phone || ''))
       csvRows.push('Cédula,' + (formData.cedula || ''))
@@ -629,7 +666,8 @@ const ClientProfilePage = () => {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      const fileName = `cliente_${formData.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`
+      const fullName = combineName(formData.firstName, formData.secondName, formData.firstLastName, formData.secondLastName)
+      const fileName = `cliente_${fullName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`
       link.setAttribute('download', fileName)
       document.body.appendChild(link)
       link.click()
@@ -696,7 +734,7 @@ const ClientProfilePage = () => {
               Volver
             </button>
             <div className="flex items-center justify-between mb-2">
-              <h1 className={`text-4xl font-bold ${
+              <h1 className={`text-2xl sm:text-4xl font-bold ${
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
               }`}>
                 Información del Cliente
@@ -741,7 +779,7 @@ const ClientProfilePage = () => {
                     : 'hover:bg-gray-50'
                 }`}
               >
-                <h2 className={`text-xl font-bold ${
+                <h2 className={`text-lg sm:text-xl font-bold ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
                   Información Personal
@@ -835,17 +873,17 @@ const ClientProfilePage = () => {
 
                 {/* Campos del formulario */}
                 <div className="space-y-4">
-              {/* Nombre */}
+              {/* Primer Nombre */}
               <div>
                 <label className={`block text-sm font-semibold mb-2 ${
                   theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                 }`}>
-                  Nombre Completo *
+                  Primer Nombre *
                 </label>
                 <input
                   type="text"
-                  name="name"
-                  value={formData.name}
+                  name="firstName"
+                  value={formData.firstName}
                   onChange={handleInputChange}
                   required
                   className={`w-full px-4 py-2 rounded-lg border transition-colors ${
@@ -853,7 +891,71 @@ const ClientProfilePage = () => {
                       ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
                       : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
                   } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                  placeholder="Ej: Juan Pérez"
+                  placeholder="Ej: Juan"
+                />
+              </div>
+
+              {/* Segundo Nombre */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Segundo Nombre
+                </label>
+                <input
+                  type="text"
+                  name="secondName"
+                  value={formData.secondName}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
+                      : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  placeholder="Ej: Carlos (opcional)"
+                />
+              </div>
+
+              {/* Primer Apellido */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Primer Apellido *
+                </label>
+                <input
+                  type="text"
+                  name="firstLastName"
+                  value={formData.firstLastName}
+                  onChange={handleInputChange}
+                  required
+                  className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
+                      : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  placeholder="Ej: Pérez"
+                />
+              </div>
+
+              {/* Segundo Apellido */}
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Segundo Apellido
+                </label>
+                <input
+                  type="text"
+                  name="secondLastName"
+                  value={formData.secondLastName}
+                  onChange={handleInputChange}
+                  className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
+                      : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  placeholder="Ej: González (opcional)"
                 />
               </div>
 
@@ -1273,7 +1375,7 @@ const ClientProfilePage = () => {
                     : 'hover:bg-gray-50'
                 }`}
               >
-                <h2 className={`text-xl font-bold ${
+                <h2 className={`text-lg sm:text-xl font-bold ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
                   Gestión de Suscripción y Pagos

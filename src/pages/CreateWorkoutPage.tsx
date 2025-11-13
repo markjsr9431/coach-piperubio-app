@@ -284,7 +284,7 @@ const CreateWorkoutPage = () => {
               theme === 'dark' ? 'bg-slate-800' : 'bg-white'
             } p-6`}
           >
-            <h1 className={`text-3xl font-bold mb-6 ${
+            <h1 className={`text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
               Crear Plan de Entrenamiento

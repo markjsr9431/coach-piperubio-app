@@ -22,9 +22,24 @@ const TopBanner = () => {
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [clientName, setClientName] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const isHomePage = location.pathname === '/' || location.pathname === '/login'
+  const isHomePage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/home'
   const isViewingClient = location.pathname.startsWith('/client/') && params.clientId
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
+
+  // Función para manejar el botón back con límite hasta /home
+  const handleBack = () => {
+    const path = location.pathname
+    if (path.startsWith('/client/')) {
+      // Si estamos viendo un cliente, ir al home
+      navigate('/home')
+    } else if (path === '/create-workout' || path === '/exercises') {
+      // Si estamos en otras páginas, ir al home
+      navigate('/home')
+    } else {
+      // Por defecto, ir al home
+      navigate('/home')
+    }
+  }
 
   // Cargar nombre del cliente cuando se está viendo un cliente específico
   useEffect(() => {
@@ -50,17 +65,19 @@ const TopBanner = () => {
     }
   }, [isViewingClient, params.clientId])
 
-  // Cargar nombre del cliente desde Firestore si es cliente
+  // Cargar nombre y foto del cliente desde Firestore si es cliente
   const [clientDisplayName, setClientDisplayName] = useState<string | null>(null)
+  const [clientProfilePhoto, setClientProfilePhoto] = useState<string | null>(null)
   
   useEffect(() => {
     if (!user || isCoach) {
       setClientDisplayName(null)
+      setClientProfilePhoto(null)
       return
     }
 
     // Buscar el cliente por email en Firestore
-    const loadClientName = async () => {
+    const loadClientData = async () => {
       try {
         const clientsRef = collection(db, 'clients')
         const q = query(clientsRef, where('email', '==', user.email?.toLowerCase()))
@@ -69,26 +86,53 @@ const TopBanner = () => {
         if (!snapshot.empty) {
           const clientData = snapshot.docs[0].data()
           setClientDisplayName(clientData.name || null)
+          setClientProfilePhoto(clientData.profilePhoto || null)
+          
+          // Actualizar photoURL en Auth si hay foto y el usuario no tiene una o es diferente
+          if (clientData.profilePhoto && clientData.profilePhoto !== user.photoURL) {
+            try {
+              const { updateProfile } = await import('firebase/auth')
+              await updateProfile(user, {
+                photoURL: clientData.profilePhoto
+              })
+            } catch (error) {
+              console.error('Error updating Auth photoURL:', error)
+            }
+          }
         }
       } catch (error) {
-        console.error('Error loading client name:', error)
+        console.error('Error loading client data:', error)
       }
     }
 
-    loadClientName()
+    loadClientData()
 
     // Suscribirse a cambios en tiempo real
     let unsubscribe: (() => void) | null = null
     try {
       const clientsRef = collection(db, 'clients')
       const q = query(clientsRef, where('email', '==', user.email?.toLowerCase()))
-      unsubscribe = onSnapshot(q, (snapshot) => {
+      unsubscribe = onSnapshot(q, async (snapshot) => {
         if (!snapshot.empty) {
           const clientData = snapshot.docs[0].data()
           setClientDisplayName(clientData.name || null)
+          const newPhoto = clientData.profilePhoto || null
+          setClientProfilePhoto(newPhoto)
+          
+          // Actualizar photoURL en Auth si hay una nueva foto
+          if (newPhoto && user && newPhoto !== user.photoURL) {
+            try {
+              const { updateProfile } = await import('firebase/auth')
+              await updateProfile(user, {
+                photoURL: newPhoto
+              })
+            } catch (error) {
+              console.error('Error updating Auth photoURL:', error)
+            }
+          }
         }
       }, (error) => {
-        console.error('Error subscribing to client name:', error)
+        console.error('Error subscribing to client data:', error)
       })
     } catch (error) {
       console.error('Error setting up subscription:', error)
@@ -194,10 +238,10 @@ const TopBanner = () => {
         {/* Botón de back - Solo visible cuando no estamos en HomePage */}
         {!isHomePage && (
           <button
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors mr-2 sm:mr-0"
-            aria-label="Volver a la página anterior"
-            title="Volver a la página anterior"
+            aria-label="Volver al inicio"
+            title="Volver al inicio"
           >
             <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -330,11 +374,23 @@ const TopBanner = () => {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-600 to-primary-800 text-white font-bold flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                className={`w-10 h-10 rounded-full text-white font-bold flex items-center justify-center shadow-lg hover:shadow-xl transition-all overflow-hidden ${
+                  (clientProfilePhoto || user.photoURL) 
+                    ? '' 
+                    : 'bg-gradient-to-br from-primary-600 to-primary-800'
+                }`}
                 aria-label="Menú de usuario"
                 title={user.displayName || user.email || 'Usuario'}
               >
-                {getUserInitials()}
+                {(clientProfilePhoto || user.photoURL) ? (
+                  <img 
+                    src={clientProfilePhoto || user.photoURL || ''} 
+                    alt={user.displayName || user.email || 'Usuario'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  getUserInitials()
+                )}
               </motion.button>
 
               {/* Menú desplegable */}

@@ -396,7 +396,7 @@ const WorkoutPage = () => {
             </>
           )}
 
-          <h1 className={`text-4xl font-bold mb-2 ${
+          <h1 className={`text-2xl sm:text-4xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>{workout.day}</h1>
           <ProgressBar progress={progress} />
@@ -416,7 +416,7 @@ const WorkoutPage = () => {
                 onClick={() => toggleSection(section.name)}
                 className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-700/50 transition-colors"
               >
-                <h2 className="text-2xl font-bold text-white">{section.name}</h2>
+                <h2 className="text-lg sm:text-2xl font-bold text-white">{section.name}</h2>
                 <motion.svg
                   animate={{ rotate: expandedSections.has(section.name) ? 180 : 0 }}
                   className="w-6 h-6 text-white"
