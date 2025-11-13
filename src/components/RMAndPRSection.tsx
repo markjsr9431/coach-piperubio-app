@@ -530,10 +530,10 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
               />
               <button
                 onClick={handleAddRM}
-                disabled={saving}
-                className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                disabled={saving || (!isCoach && !editingRMId && hasRecordForToday(rms))}
+                className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? 'Guardando...' : editingRMId ? 'Actualizar RM' : 'Guardar RM'}
+                {saving ? 'Guardando...' : editingRMId ? 'Actualizar RM' : (!isCoach && hasRecordForToday(rms) ? 'Ya registraste un RM hoy' : 'Guardar RM')}
               </button>
             </div>
           </motion.div>
@@ -696,10 +696,10 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
               />
               <button
                 onClick={handleAddPR}
-                disabled={saving}
-                className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                disabled={saving || (!isCoach && !editingPRId && hasRecordForToday(prs))}
+                className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? 'Guardando...' : editingPRId ? 'Actualizar PR' : 'Guardar PR'}
+                {saving ? 'Guardando...' : editingPRId ? 'Actualizar PR' : (!isCoach && hasRecordForToday(prs) ? 'Ya registraste un PR hoy' : 'Guardar PR')}
               </button>
             </div>
           </motion.div>

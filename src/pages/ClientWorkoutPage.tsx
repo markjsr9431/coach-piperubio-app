@@ -365,18 +365,17 @@ const ClientWorkoutPage = () => {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1
+        staggerChildren: 0
       }
     }
   }
 
   const cardVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0 },
     visible: { 
-      opacity: 1, 
-      y: 0,
+      opacity: 1,
       transition: {
-        duration: 0.3
+        duration: 0.1
       }
     }
   }
@@ -411,9 +410,9 @@ const ClientWorkoutPage = () => {
       {/* Contenido Principal */}
       <div className="pt-8 pb-12 px-4 sm:px-6 lg:px-8 relative">
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0 }}
           className="max-w-7xl mx-auto"
         >
           <div className="text-center mb-12">
@@ -532,9 +531,7 @@ const ClientWorkoutPage = () => {
                           variants={cardVariants}
                           initial="hidden"
                           animate="visible"
-                          whileHover={!isFeedbackSubmitted ? { scale: 1.05, y: -5 } : {}}
-                          whileTap={!isFeedbackSubmitted ? { scale: 0.95 } : {}}
-                          className={`relative rounded-xl p-4 sm:p-6 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
                             isFeedbackSubmitted 
                               ? 'opacity-60 cursor-not-allowed' 
                               : 'hover:shadow-2xl cursor-pointer'
@@ -574,9 +571,7 @@ const ClientWorkoutPage = () => {
                             variants={cardVariants}
                             initial="hidden"
                             animate="visible"
-                            whileHover={{ scale: 1.05, y: -5 }}
-                            whileTap={{ scale: 0.95 }}
-                            className={`relative rounded-xl p-4 sm:p-6 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                            className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
                               theme === 'dark'
                                 ? 'bg-slate-700 hover:bg-slate-600'
                                 : 'bg-white hover:bg-gray-100 border border-gray-300'
@@ -630,8 +625,8 @@ const ClientWorkoutPage = () => {
                 <motion.div
                   key={index}
                   variants={cardVariants}
-                  whileHover={!selectionMode ? { scale: 1.05, y: -5 } : {}}
-                  whileTap={!selectionMode ? { scale: 0.95 } : {}}
+                  initial="hidden"
+                  animate="visible"
                   className={`relative rounded-xl p-6 shadow-lg hover:shadow-2xl transition-all ${
                     selectionMode
                       ? isSelected
@@ -748,10 +743,10 @@ const ClientWorkoutPage = () => {
         <AnimatePresence>
           {showInfoModal && !isCoach && (
             <motion.div
-              initial={{ opacity: 0, x: 100, scale: 0.8 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 100, scale: 0.8 }}
-              transition={{ duration: 0.4, ease: "easeOut", delay: 0.6 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.1 }}
               className="fixed bottom-4 left-4 right-4 sm:bottom-6 sm:right-6 sm:left-auto z-50 max-w-sm sm:w-full"
             >
               <div className="bg-red-600/60 backdrop-blur-md text-white rounded-xl shadow-2xl border-2 border-red-500/30 p-4 relative overflow-hidden">

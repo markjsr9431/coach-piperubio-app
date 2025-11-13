@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
-import { doc, getDoc } from 'firebase/firestore'
+import { collection, getDocs } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 
 interface ProgressData {
@@ -40,35 +39,40 @@ const ProgressChartsPage = () => {
         setLoading(true)
         const progressArray: ProgressData[] = []
 
-        // Cargar todos los documentos de progreso
-        for (let i = 1; i <= 30; i++) {
-          try {
-            const progressRef = doc(db, 'clients', clientId, 'progress', `day-${i}`)
-            const progressDoc = await getDoc(progressRef)
-            
-            if (progressDoc.exists()) {
-              const data = progressDoc.data()
-              const completedAt = data.completedAt?.toDate 
-                ? data.completedAt.toDate() 
-                : data.completedAt 
-                ? new Date(data.completedAt) 
-                : null
-              
-              if (completedAt) {
-                progressArray.push({
-                  dayIndex: i,
-                  date: completedAt,
-                  progress: data.progress || 0,
-                  workoutDuration: data.workoutDuration || undefined,
-                  completedExercises: data.completedExercises || 0,
-                  totalExercises: data.totalExercises || 0
-                })
-              }
-            }
-          } catch (error) {
-            // Continuar si hay error en un día específico
+        // Cargar todos los documentos de progreso usando getDocs (más eficiente)
+        const progressCollectionRef = collection(db, 'clients', clientId, 'progress')
+        const progressSnapshot = await getDocs(progressCollectionRef)
+        
+        progressSnapshot.forEach((progressDoc) => {
+          // Ignorar el documento 'summary'
+          if (progressDoc.id === 'summary') return
+          
+          // Extraer el número del día del ID (formato: "day-1", "day-2", etc.)
+          const dayMatch = progressDoc.id.match(/^day-(\d+)$/)
+          if (!dayMatch) return
+          
+          const dayIndex = parseInt(dayMatch[1])
+          if (dayIndex < 1 || dayIndex > 30) return
+          
+          const data = progressDoc.data()
+          const completedAt = data.completedAt?.toDate 
+            ? data.completedAt.toDate() 
+            : data.completedAt 
+            ? new Date(data.completedAt) 
+            : null
+          
+          // Solo incluir días que realmente se entrenaron (con completedAt)
+          if (completedAt) {
+            progressArray.push({
+              dayIndex,
+              date: completedAt,
+              progress: data.progress || 0,
+              workoutDuration: data.workoutDuration || undefined,
+              completedExercises: data.completedExercises || 0,
+              totalExercises: data.totalExercises || 0
+            })
           }
-        }
+        })
 
         // Ordenar por fecha
         progressArray.sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -120,6 +124,77 @@ const ProgressChartsPage = () => {
     return `${minutes} min ${remainingSeconds} seg`
   }
 
+  // Calcular estadísticas
+  const calculateStats = () => {
+    if (progressData.length === 0) {
+      return {
+        totalDays: 0,
+        currentStreak: 0,
+        bestStreak: 0,
+        workoutDates: [] as Date[]
+      }
+    }
+
+    const workoutDates = progressData.map(item => {
+      const date = new Date(item.date)
+      date.setHours(0, 0, 0, 0)
+      return date
+    })
+
+    // Calcular racha actual (días seguidos desde la fecha más reciente)
+    let currentStreak = 0
+    if (workoutDates.length > 0) {
+      const sortedDates = [...workoutDates].sort((a, b) => b.getTime() - a.getTime())
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      let checkDate = new Date(today)
+      for (let i = 0; i < sortedDates.length; i++) {
+        const workoutDate = sortedDates[i]
+        if (workoutDate.getTime() === checkDate.getTime()) {
+          currentStreak++
+          checkDate.setDate(checkDate.getDate() - 1)
+        } else if (i === 0) {
+          // Si el último entrenamiento no es hoy, no hay racha
+          break
+        } else {
+          break
+        }
+      }
+    }
+
+    // Calcular mejor racha
+    let bestStreak = 0
+    if (workoutDates.length > 0) {
+      const sortedDates = [...workoutDates].sort((a, b) => a.getTime() - b.getTime())
+      let streak = 1
+      for (let i = 1; i < sortedDates.length; i++) {
+        const prevDate = new Date(sortedDates[i - 1])
+        const currDate = new Date(sortedDates[i])
+        prevDate.setDate(prevDate.getDate() + 1)
+        prevDate.setHours(0, 0, 0, 0)
+        currDate.setHours(0, 0, 0, 0)
+        
+        if (prevDate.getTime() === currDate.getTime()) {
+          streak++
+        } else {
+          bestStreak = Math.max(bestStreak, streak)
+          streak = 1
+        }
+      }
+      bestStreak = Math.max(bestStreak, streak)
+    }
+
+    return {
+      totalDays: progressData.length,
+      currentStreak,
+      bestStreak,
+      workoutDates: workoutDates.sort((a, b) => b.getTime() - a.getTime())
+    }
+  }
+
+  const stats = calculateStats()
+
   if (loading) {
     return (
       <div className={`min-h-screen bg-gradient-to-br ${
@@ -146,11 +221,7 @@ const ProgressChartsPage = () => {
       <div className="h-40 sm:h-48"></div>
 
       <div className="pt-8 pb-12 px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-6xl mx-auto"
-        >
+        <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="mb-8">
             <button
@@ -177,6 +248,91 @@ const ProgressChartsPage = () => {
               Visualiza el progreso del cliente en tiempo real
             </p>
           </div>
+
+          {/* Estadísticas */}
+          {progressData.length > 0 && (
+            <div className={`mb-6 p-6 rounded-xl ${
+              theme === 'dark' ? 'bg-slate-800/50' : 'bg-white/50'
+            }`}>
+              <h2 className={`text-lg font-bold mb-4 ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Estadísticas de Entrenamiento
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`p-4 rounded-lg ${
+                  theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                }`}>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                    Total de Días Entrenados
+                  </p>
+                  <p className={`text-2xl font-bold mt-1 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {stats.totalDays}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-lg ${
+                  theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                }`}>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                    Racha Actual
+                  </p>
+                  <p className={`text-2xl font-bold mt-1 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {stats.currentStreak} {stats.currentStreak === 1 ? 'día' : 'días'}
+                  </p>
+                </div>
+                <div className={`p-4 rounded-lg ${
+                  theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                }`}>
+                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                    Mejor Racha
+                  </p>
+                  <p className={`text-2xl font-bold mt-1 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {stats.bestStreak} {stats.bestStreak === 1 ? 'día' : 'días'}
+                  </p>
+                </div>
+              </div>
+              {stats.workoutDates.length > 0 && (
+                <div className="mt-4">
+                  <p className={`text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Días que entrenó:
+                  </p>
+                  <div className={`flex flex-wrap gap-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    {stats.workoutDates.slice(0, 10).map((date, index) => (
+                      <span
+                        key={index}
+                        className={`px-2 py-1 rounded text-xs ${
+                          theme === 'dark' ? 'bg-slate-600' : 'bg-gray-200'
+                        }`}
+                      >
+                        {date.toLocaleDateString('es-ES', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    ))}
+                    {stats.workoutDates.length > 10 && (
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        theme === 'dark' ? 'bg-slate-600 text-slate-300' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        +{stats.workoutDates.length - 10} más
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Filtros */}
           <div className={`mb-6 p-6 rounded-xl ${
@@ -401,7 +557,7 @@ const ProgressChartsPage = () => {
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   )

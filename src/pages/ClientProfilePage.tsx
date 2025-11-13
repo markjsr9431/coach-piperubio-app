@@ -35,6 +35,7 @@ const ClientProfilePage = () => {
   })
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoBase64, setPhotoBase64] = useState<string | null>(null)
+  const [photoRemoved, setPhotoRemoved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [payments, setPayments] = useState<any[]>([])
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -51,7 +52,25 @@ const ClientProfilePage = () => {
   const [isSubscriptionExpanded, setIsSubscriptionExpanded] = useState(false)
   const [isFeedbackExpanded, setIsFeedbackExpanded] = useState(false)
   const [isRMAndPRExpanded, setIsRMAndPRExpanded] = useState(false)
+  const [isAnthropometricExpanded, setIsAnthropometricExpanded] = useState(false)
   const [feedbackList, setFeedbackList] = useState<Array<{day: number, data: any}>>([])
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [selectedFeedbackDay, setSelectedFeedbackDay] = useState<{day: number, data: any} | null>(null)
+  const [anthropometricMeasures, setAnthropometricMeasures] = useState<any[]>([])
+  const [showAnthropometricModal, setShowAnthropometricModal] = useState(false)
+  const [anthropometricFormData, setAnthropometricFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    weight: '',
+    bodyFat: '',
+    muscleMass: '',
+    waist: '',
+    hip: '',
+    chest: '',
+    arm: '',
+    thigh: '',
+    notes: ''
+  })
+  const [savingAnthropometric, setSavingAnthropometric] = useState(false)
 
   // Cargar datos del cliente
   useEffect(() => {
@@ -132,6 +151,26 @@ const ClientProfilePage = () => {
     return () => unsubscribe()
   }, [clientId, isCoach])
 
+  // Cargar medidas antropométricas
+  useEffect(() => {
+    if (!clientId || !isCoach) return
+
+    const anthropometricRef = collection(db, 'clients', clientId, 'anthropometric')
+    const q = query(anthropometricRef, orderBy('date', 'desc'))
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const measuresList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      setAnthropometricMeasures(measuresList)
+    }, (error) => {
+      console.error('Error loading anthropometric measures:', error)
+    })
+
+    return () => unsubscribe()
+  }, [clientId, isCoach])
+
   // Cargar retroalimentación desde localStorage
   useEffect(() => {
     if (!clientId) return
@@ -159,67 +198,30 @@ const ClientProfilePage = () => {
     loadFeedback()
   }, [clientId])
 
-  // Función para redimensionar imagen y convertir a base64 (para Firestore)
+  // Función para convertir imagen a base64 con compresión opcional
   const resizeImageToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      // Validar tamaño antes de procesar (máximo 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        reject(new Error('La imagen es demasiado grande. Por favor, selecciona una imagen más pequeña (máximo 5MB).'))
-        return
-      }
-
       const reader = new FileReader()
       reader.onload = (e) => {
         const img = new Image()
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          const MAX_SIZE = 128
-          let width = img.width
-          let height = img.height
-
-          // Calcular dimensiones manteniendo proporción
-          if (width > height) {
-            if (width > MAX_SIZE) {
-              height *= MAX_SIZE / width
-              width = MAX_SIZE
-            }
-          } else {
-            if (height > MAX_SIZE) {
-              width *= MAX_SIZE / height
-              height = MAX_SIZE
-            }
-          }
-
-          canvas.width = width
-          canvas.height = height
+          // Mantener dimensiones originales
+          canvas.width = img.width
+          canvas.height = img.height
           const ctx = canvas.getContext('2d')
           if (!ctx) {
             reject(new Error('No se pudo obtener el contexto del canvas'))
             return
           }
           
-          // Dibujar imagen redimensionada
-          ctx.drawImage(img, 0, 0, width, height)
+          // Dibujar imagen
+          ctx.drawImage(img, 0, 0, img.width, img.height)
           
-          // Convertir a base64 con calidad reducida
-          // Intentar diferentes niveles de calidad hasta que el tamaño sea aceptable (máximo 800KB para Firestore)
-          let quality = 0.7
-          const maxSize = 800 * 1024 // 800KB máximo (Firestore permite hasta 1MB)
-          
-          const tryCompress = (q: number) => {
-            const base64 = canvas.toDataURL('image/jpeg', q)
-            // Calcular tamaño aproximado (base64 es ~33% más grande que el binario)
-            const size = (base64.length * 3) / 4
-            
-            if (size > maxSize && q > 0.3) {
-              // Reducir calidad si el tamaño es muy grande
-              tryCompress(q - 0.1)
-            } else {
-              resolve(base64)
-            }
-          }
-          
-          tryCompress(quality)
+          // Convertir a base64 con calidad recomendada (70-80% para optimizar espacio)
+          const quality = 0.75
+          const base64 = canvas.toDataURL('image/jpeg', quality)
+          resolve(base64)
         }
         img.onerror = () => reject(new Error('Error al cargar la imagen'))
         if (e.target?.result) {
@@ -241,20 +243,15 @@ const ClientProfilePage = () => {
       return
     }
 
-    // Validar tamaño (máximo 5MB antes de redimensionar)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('La imagen es demasiado grande. Por favor, selecciona una imagen más pequeña (máximo 5MB).')
-      return
-    }
-
     try {
       setError(null)
-      // Redimensionar imagen y convertir a base64
+      // Convertir imagen a base64 con compresión opcional
       const base64 = await resizeImageToBase64(file)
       
       // Usar base64 directamente como preview
       setPhotoPreview(base64)
       setPhotoBase64(base64)
+      setPhotoRemoved(false) // Resetear el flag de eliminación si se sube una nueva foto
     } catch (error: any) {
       console.error('Error processing image:', error)
       setError(error.message || 'Error al procesar la imagen')
@@ -276,12 +273,15 @@ const ClientProfilePage = () => {
     try {
       let photoUrl = formData.profilePhoto
 
-      // Guardar foto como base64 si hay una nueva
+      // Si hay una nueva foto (photoBase64), usarla
       if (photoBase64) {
-        // Guardar directamente como base64 en Firestore
         photoUrl = photoBase64
         console.log('Foto procesada exitosamente (base64)')
+      } else if (photoRemoved) {
+        // Si se eliminó la foto explícitamente, establecer como null
+        photoUrl = null
       }
+      // Si no hay photoBase64 y no se eliminó, mantener el valor actual de formData.profilePhoto
 
       // Actualizar datos en Firestore
       const clientRef = doc(db, 'clients', clientId)
@@ -347,6 +347,7 @@ const ClientProfilePage = () => {
       // Actualizar estado local
       setFormData(prev => ({ ...prev, profilePhoto: photoUrl }))
       setPhotoBase64(null)
+      setPhotoRemoved(false)
       
       alert('Información del cliente actualizada correctamente')
     } catch (error: any) {
@@ -360,6 +361,8 @@ const ClientProfilePage = () => {
   const handleRemovePhoto = () => {
     setPhotoPreview(null)
     setPhotoBase64(null)
+    setPhotoRemoved(true)
+    setFormData(prev => ({ ...prev, profilePhoto: null }))
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -426,6 +429,94 @@ const ClientProfilePage = () => {
       setError(errorMessage)
     } finally {
       setSavingPayment(false)
+    }
+  }
+
+  const handleAnthropometricInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setAnthropometricFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleSaveAnthropometric = async () => {
+    if (!clientId || !isCoach) return
+
+    if (!anthropometricFormData.date) {
+      setError('Por favor completa la fecha')
+      return
+    }
+
+    setSavingAnthropometric(true)
+    setError(null)
+
+    try {
+      const measureDate = new Date(anthropometricFormData.date)
+      const anthropometricRef = collection(db, 'clients', clientId, 'anthropometric')
+      
+      const measureData: any = {
+        date: Timestamp.fromDate(measureDate),
+        createdAt: serverTimestamp()
+      }
+
+      // Solo agregar campos que tengan valor
+      if (anthropometricFormData.weight) {
+        measureData.weight = parseFloat(anthropometricFormData.weight)
+      }
+      if (anthropometricFormData.bodyFat) {
+        measureData.bodyFat = parseFloat(anthropometricFormData.bodyFat)
+      }
+      if (anthropometricFormData.muscleMass) {
+        measureData.muscleMass = parseFloat(anthropometricFormData.muscleMass)
+      }
+      if (anthropometricFormData.waist) {
+        measureData.waist = parseFloat(anthropometricFormData.waist)
+      }
+      if (anthropometricFormData.hip) {
+        measureData.hip = parseFloat(anthropometricFormData.hip)
+      }
+      if (anthropometricFormData.chest) {
+        measureData.chest = parseFloat(anthropometricFormData.chest)
+      }
+      if (anthropometricFormData.arm) {
+        measureData.arm = parseFloat(anthropometricFormData.arm)
+      }
+      if (anthropometricFormData.thigh) {
+        measureData.thigh = parseFloat(anthropometricFormData.thigh)
+      }
+      if (anthropometricFormData.notes) {
+        measureData.notes = anthropometricFormData.notes.trim()
+      }
+      
+      await addDoc(anthropometricRef, measureData)
+
+      // Resetear formulario
+      setAnthropometricFormData({
+        date: new Date().toISOString().split('T')[0],
+        weight: '',
+        bodyFat: '',
+        muscleMass: '',
+        waist: '',
+        hip: '',
+        chest: '',
+        arm: '',
+        thigh: '',
+        notes: ''
+      })
+      setShowAnthropometricModal(false)
+    } catch (error: any) {
+      console.error('Error saving anthropometric measure:', error)
+      let errorMessage = 'Error al registrar la medida'
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = 'No tienes permisos para registrar medidas. Verifica las reglas de Firestore.'
+      } else if (error.code === 'unavailable') {
+        errorMessage = 'Servicio no disponible. Por favor, intenta de nuevo más tarde.'
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setSavingAnthropometric(false)
     }
   }
 
@@ -632,7 +723,7 @@ const ClientProfilePage = () => {
           </div>
 
           {/* Form - Dos Columnas con Secciones Colapsables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             {/* Columna Izquierda - Información Personal */}
             <div className={`rounded-xl shadow-lg overflow-hidden ${
               theme === 'dark' 
@@ -732,7 +823,10 @@ const ClientProfilePage = () => {
                   <p className={`text-xs mt-2 ${
                     theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                   }`}>
-                    Máximo 128x128 píxeles. La imagen se redimensionará y comprimirá automáticamente (máximo 5MB original).
+                    La imagen se comprimirá automáticamente (calidad 75%). 
+                    <br />
+                    <span className="font-semibold">Recomendación:</span> Para optimizar el almacenamiento, considera usar servicios externos como Cloudinary, Firebase Storage o Imgur. 
+                    Comprime la imagen antes de subir (formato JPEG con calidad 70-80%) para reducir el consumo de espacio.
                   </p>
                 </div>
                   </div>
@@ -917,98 +1011,201 @@ const ClientProfilePage = () => {
                         No hay retroalimentación registrada aún
                       </p>
                     ) : (
-                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                         {feedbackList.map(({ day, data }) => (
-                          <div
+                          <button
                             key={day}
-                            className={`p-4 rounded-lg border ${
+                            onClick={() => {
+                              setSelectedFeedbackDay({ day, data })
+                              setShowFeedbackModal(true)
+                            }}
+                            className={`p-3 rounded-lg border transition-colors text-center ${
                               theme === 'dark'
-                                ? 'bg-slate-700/50 border-slate-600'
-                                : 'bg-gray-50 border-gray-200'
+                                ? 'bg-slate-700/50 border-slate-600 hover:bg-slate-600 hover:border-slate-500'
+                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                             }`}
                           >
-                            <h3 className={`font-semibold mb-2 ${
+                            <span className={`font-semibold ${
                               theme === 'dark' ? 'text-white' : 'text-gray-900'
                             }`}>
-                              Día {day}
-                            </h3>
-                            
-                            {data.comment && (
-                              <div className="mb-2">
-                                <p className={`text-sm font-medium mb-1 ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>
-                                  Comentario:
-                                </p>
-                                <p className={`text-sm ${
-                                  theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-                                }`}>
-                                  {data.comment}
-                                </p>
-                              </div>
-                            )}
-                            
-                            {data.effort !== null && data.effort !== undefined && (
-                              <div className="mb-2">
-                                <p className={`text-sm font-medium mb-1 ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>
-                                  Esfuerzo: {data.effort}/10
-                                </p>
-                                <div className={`w-full rounded-full h-2 ${
-                                  theme === 'dark' ? 'bg-slate-600' : 'bg-gray-300'
-                                }`}>
-                                  <div
-                                    className={`h-2 rounded-full ${
-                                      data.effort <= 3 ? 'bg-red-500' :
-                                      data.effort <= 6 ? 'bg-yellow-500' :
-                                      data.effort <= 8 ? 'bg-green-500' :
-                                      'bg-blue-500'
-                                    }`}
-                                    style={{ width: `${(data.effort / 10) * 100}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            
-                            {data.weightUsed && data.weightUsed.length > 0 && (
-                              <div className="mb-2">
-                                <p className={`text-sm font-medium mb-1 ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>
-                                  Peso utilizado:
-                                </p>
-                                <p className={`text-sm ${
-                                  theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-                                }`}>
-                                  {data.weightUsed.filter((w: string) => w !== 'Otro').map((implement: string) => {
-                                    const amount = data.weightAmounts?.[implement]
-                                    return amount ? `${implement} (${amount}kg)` : implement
-                                  }).join(', ')}
-                                </p>
-                              </div>
-                            )}
-                            
-                            {data.feeling && (
-                              <div>
-                                <p className={`text-sm font-medium mb-1 ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>
-                                  Sentimiento:
-                                </p>
-                                <p className={`text-sm ${
-                                  theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
-                                }`}>
-                                  {data.feeling === 'excelente' ? '😃 Excelente' :
-                                   data.feeling === 'bien' ? '🙂 Bien' :
-                                   data.feeling === 'normal' ? '😐 Normal' :
-                                   data.feeling === 'cansado' ? '😫 Cansado' :
-                                   data.feeling === 'dificil' ? '😞 Difícil' : data.feeling}
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                              DIA {day}
+                            </span>
+                          </button>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Sección Medidas Antropométricas */}
+            {clientId && (
+              <div className={`rounded-xl shadow-lg overflow-hidden ${
+                theme === 'dark' 
+                  ? 'bg-slate-800/80 border border-slate-700' 
+                  : 'bg-white border border-gray-200'
+              }`}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsAnthropometricExpanded(!isAnthropometricExpanded)
+                  }}
+                  className={`w-full p-6 flex items-center justify-between transition-colors ${
+                    theme === 'dark' 
+                      ? 'hover:bg-slate-700/50' 
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <h2 className={`text-xl font-bold ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Medidas Antropométricas
+                  </h2>
+                  <svg
+                    className={`w-5 h-5 transition-transform ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+                    } ${isAnthropometricExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {isAnthropometricExpanded && (
+                  <div className="px-6 pb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className={`text-lg font-semibold ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Historial de Medidas
+                      </h3>
+                      <button
+                        onClick={() => setShowAnthropometricModal(true)}
+                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Añadir Medida
+                      </button>
+                    </div>
+
+                    {anthropometricMeasures.length === 0 ? (
+                      <div className={`text-center py-8 rounded-lg ${
+                        theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                      }`}>
+                        <p className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                          No hay medidas registradas aún
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {anthropometricMeasures.map((measure) => {
+                          const measureDate = measure.date?.toDate 
+                            ? measure.date.toDate() 
+                            : measure.date 
+                            ? new Date(measure.date) 
+                            : new Date()
+                          
+                          return (
+                            <div
+                              key={measure.id}
+                              className={`p-4 rounded-lg border ${
+                                theme === 'dark' 
+                                  ? 'bg-slate-700/50 border-slate-600' 
+                                  : 'bg-white border-gray-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <p className={`font-semibold ${
+                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {measureDate.toLocaleDateString('es-ES', { 
+                                    day: '2-digit', 
+                                    month: '2-digit', 
+                                    year: 'numeric' 
+                                  })}
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                                {measure.weight && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Peso: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.weight} kg
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.bodyFat && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>% Grasa: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.bodyFat}%
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.muscleMass && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Masa Muscular: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.muscleMass} kg
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.waist && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Cintura: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.waist} cm
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.hip && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Cadera: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.hip} cm
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.chest && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Pecho: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.chest} cm
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.arm && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Brazo: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.arm} cm
+                                    </span>
+                                  </div>
+                                )}
+                                {measure.thigh && (
+                                  <div>
+                                    <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Muslo: </span>
+                                    <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                      {measure.thigh} cm
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              {measure.notes && (
+                                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+                                    {measure.notes}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -1568,6 +1765,402 @@ const ClientProfilePage = () => {
                   {savingPayment ? 'Guardando...' : 'Registrar Pago'}
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de Añadir Medida Antropométrica */}
+      {showAnthropometricModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={`w-full max-w-2xl rounded-2xl shadow-2xl backdrop-blur-sm ${
+              theme === 'dark' ? 'bg-slate-800/90 border border-slate-700/50' : 'bg-white/90 border border-gray-200/50'
+            } p-6 max-h-[90vh] overflow-y-auto`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-xl font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Añadir Medida Antropométrica
+              </h3>
+              <button
+                onClick={() => setShowAnthropometricModal(false)}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-slate-700 text-slate-400' 
+                    : 'hover:bg-gray-100 text-gray-500'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Fecha *
+                </label>
+                <input
+                  type="date"
+                  name="date"
+                  value={anthropometricFormData.date}
+                  onChange={handleAnthropometricInputChange}
+                  className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 border-slate-600 text-white'
+                      : 'bg-gray-50 border-gray-300 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Peso Corporal (kg)
+                  </label>
+                  <input
+                    type="number"
+                    name="weight"
+                    value={anthropometricFormData.weight}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Porcentaje de Grasa (%)
+                  </label>
+                  <input
+                    type="number"
+                    name="bodyFat"
+                    value={anthropometricFormData.bodyFat}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Masa Muscular (kg)
+                  </label>
+                  <input
+                    type="number"
+                    name="muscleMass"
+                    value={anthropometricFormData.muscleMass}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Cintura (cm)
+                  </label>
+                  <input
+                    type="number"
+                    name="waist"
+                    value={anthropometricFormData.waist}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Cadera (cm)
+                  </label>
+                  <input
+                    type="number"
+                    name="hip"
+                    value={anthropometricFormData.hip}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Pecho (cm)
+                  </label>
+                  <input
+                    type="number"
+                    name="chest"
+                    value={anthropometricFormData.chest}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Brazo (cm)
+                  </label>
+                  <input
+                    type="number"
+                    name="arm"
+                    value={anthropometricFormData.arm}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Muslo (cm)
+                  </label>
+                  <input
+                    type="number"
+                    name="thigh"
+                    value={anthropometricFormData.thigh}
+                    onChange={handleAnthropometricInputChange}
+                    placeholder="0.0"
+                    step="0.1"
+                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white'
+                        : 'bg-gray-50 border-gray-300 text-gray-900'
+                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Notas (opcional)
+                </label>
+                <textarea
+                  name="notes"
+                  value={anthropometricFormData.notes}
+                  onChange={handleAnthropometricInputChange}
+                  rows={3}
+                  className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 border-slate-600 text-white'
+                      : 'bg-gray-50 border-gray-300 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                  placeholder="Notas adicionales sobre las medidas..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowAnthropometricModal(false)}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                      : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                  }`}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveAnthropometric}
+                  disabled={savingAnthropometric}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-lg font-semibold hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingAnthropometric ? 'Guardando...' : 'Añadir Medida'}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de Detalles de Retroalimentación */}
+      {showFeedbackModal && selectedFeedbackDay && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={`w-full max-w-2xl rounded-2xl shadow-2xl backdrop-blur-sm ${
+              theme === 'dark' ? 'bg-slate-800/90 border border-slate-700/50' : 'bg-white/90 border border-gray-200/50'
+            } p-6 max-h-[90vh] overflow-y-auto`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-xl font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Retroalimentación - Día {selectedFeedbackDay.day}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowFeedbackModal(false)
+                  setSelectedFeedbackDay(null)
+                }}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-slate-700 text-slate-400' 
+                    : 'hover:bg-gray-100 text-gray-500'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {selectedFeedbackDay.data.comment && (
+                <div>
+                  <p className={`text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Comentario:
+                  </p>
+                  <p className={`text-sm p-3 rounded-lg ${
+                    theme === 'dark' ? 'bg-slate-700/50 text-slate-200' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedFeedbackDay.data.comment}
+                  </p>
+                </div>
+              )}
+              
+              {selectedFeedbackDay.data.effort !== null && selectedFeedbackDay.data.effort !== undefined && (
+                <div>
+                  <p className={`text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Esfuerzo: {selectedFeedbackDay.data.effort}/10
+                  </p>
+                  <div className={`w-full rounded-full h-3 ${
+                    theme === 'dark' ? 'bg-slate-600' : 'bg-gray-300'
+                  }`}>
+                    <div
+                      className={`h-3 rounded-full ${
+                        selectedFeedbackDay.data.effort <= 3 ? 'bg-red-500' :
+                        selectedFeedbackDay.data.effort <= 6 ? 'bg-yellow-500' :
+                        selectedFeedbackDay.data.effort <= 8 ? 'bg-green-500' :
+                        'bg-blue-500'
+                      }`}
+                      style={{ width: `${(selectedFeedbackDay.data.effort / 10) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {selectedFeedbackDay.data.weightUsed && selectedFeedbackDay.data.weightUsed.length > 0 && (
+                <div>
+                  <p className={`text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Peso utilizado:
+                  </p>
+                  <p className={`text-sm p-3 rounded-lg ${
+                    theme === 'dark' ? 'bg-slate-700/50 text-slate-200' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedFeedbackDay.data.weightUsed.filter((w: string) => w !== 'Otro').map((implement: string) => {
+                      const amount = selectedFeedbackDay.data.weightAmounts?.[implement]
+                      return amount ? `${implement} (${amount}kg)` : implement
+                    }).join(', ')}
+                  </p>
+                </div>
+              )}
+              
+              {selectedFeedbackDay.data.feeling && (
+                <div>
+                  <p className={`text-sm font-semibold mb-2 ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                  }`}>
+                    Sentimiento:
+                  </p>
+                  <p className={`text-sm p-3 rounded-lg ${
+                    theme === 'dark' ? 'bg-slate-700/50 text-slate-200' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {selectedFeedbackDay.data.feeling === 'excelente' ? '😃 Excelente' :
+                     selectedFeedbackDay.data.feeling === 'bien' ? '🙂 Bien' :
+                     selectedFeedbackDay.data.feeling === 'normal' ? '😐 Normal' :
+                     selectedFeedbackDay.data.feeling === 'cansado' ? '😫 Cansado' :
+                     selectedFeedbackDay.data.feeling === 'dificil' ? '😞 Difícil' : selectedFeedbackDay.data.feeling}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6 pt-4 border-t border-slate-700/50">
+              <button
+                onClick={() => {
+                  setShowFeedbackModal(false)
+                  setSelectedFeedbackDay(null)
+                }}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                }`}
+              >
+                Cerrar
+              </button>
             </div>
           </motion.div>
         </div>

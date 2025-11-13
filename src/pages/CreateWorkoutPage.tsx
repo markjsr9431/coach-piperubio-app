@@ -14,6 +14,8 @@ interface Client {
   id: string
   name: string
   email: string
+  createdAt?: any
+  clientCategory?: 'new' | 'old'
 }
 
 const CreateWorkoutPage = () => {
@@ -37,6 +39,8 @@ const CreateWorkoutPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [addedExercisesCount, setAddedExercisesCount] = useState(0)
+  const [showClientModal, setShowClientModal] = useState(false)
+  const [clientModalType, setClientModalType] = useState<'new' | 'old' | null>(null)
 
   // Cargar lista de clientes
   useEffect(() => {
@@ -60,7 +64,9 @@ const CreateWorkoutPage = () => {
             clientsList.push({
               id: doc.id,
               name: data.name || '',
-              email: data.email || ''
+              email: data.email || '',
+              createdAt: data.createdAt,
+              clientCategory: data.clientCategory
             })
           }
         })
@@ -144,6 +150,36 @@ const CreateWorkoutPage = () => {
       return newSet
     })
   }
+
+  // Separar clientes en nuevos y antiguos (misma lógica que HomePage)
+  const getNewClients = () => {
+    return clients.filter(client => {
+      // Si tiene categoría manual, usar esa
+      if (client.clientCategory === 'new') return true
+      if (client.clientCategory === 'old') return false
+      // Si no tiene categoría manual, usar criterio de 30 días
+      if (!client.createdAt) return false
+      const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      return createdAt >= thirtyDaysAgo
+    })
+  }
+
+  const getOldClients = () => {
+    return clients.filter(client => {
+      // Si tiene categoría manual, usar esa
+      if (client.clientCategory === 'old') return true
+      if (client.clientCategory === 'new') return false
+      // Si no tiene categoría manual, usar criterio de 30 días
+      if (!client.createdAt) return true
+      const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      return createdAt < thirtyDaysAgo
+    })
+  }
+
+  const newClients = getNewClients()
+  const oldClients = getOldClients()
 
   const handleSave = async () => {
     if (!workoutName.trim()) {
@@ -457,7 +493,7 @@ const CreateWorkoutPage = () => {
                 Agregar Sección
               </button>
 
-              {/* Selector de Clientes */}
+              {/* Selector de Clientes - Desplegable */}
               <div className={`rounded-lg border ${
                 theme === 'dark' ? 'border-slate-700 bg-slate-700/50' : 'border-gray-200 bg-gray-50'
               } p-4`}>
@@ -466,30 +502,46 @@ const CreateWorkoutPage = () => {
                 }`}>
                   Asignar a Clientes (Opcional)
                 </h3>
-                <div className="max-h-60 overflow-y-auto space-y-2">
-                  {clients.map((client) => (
-                    <label
-                      key={client.id}
-                      className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-opacity-50 ${
-                        theme === 'dark' ? 'hover:bg-slate-600' : 'hover:bg-gray-100'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedClients.has(client.id)}
-                        onChange={() => handleToggleClient(client.id)}
-                        className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
-                      />
-                      <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                        {client.name} ({client.email})
-                      </span>
-                    </label>
-                  ))}
-                  {clients.length === 0 && (
-                    <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-                      No hay clientes disponibles
+                {selectedClients.size > 0 && (
+                  <div className="mb-4">
+                    <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+                      {selectedClients.size} cliente(s) seleccionado(s)
                     </p>
-                  )}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setClientModalType('new')
+                      setShowClientModal(true)
+                    }}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors flex items-center justify-center gap-2 ${
+                      theme === 'dark'
+                        ? 'border-slate-600 hover:border-slate-500 text-slate-300 hover:bg-slate-600'
+                        : 'border-gray-300 hover:border-gray-400 text-gray-700 hover:bg-gray-100'
+                    } font-semibold`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Nuevos ({newClients.length})
+                  </button>
+                  <button
+                    onClick={() => {
+                      setClientModalType('old')
+                      setShowClientModal(true)
+                    }}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors flex items-center justify-center gap-2 ${
+                      theme === 'dark'
+                        ? 'border-slate-600 hover:border-slate-500 text-slate-300 hover:bg-slate-600'
+                        : 'border-gray-300 hover:border-gray-400 text-gray-700 hover:bg-gray-100'
+                    } font-semibold`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Antiguos ({oldClients.length})
+                  </button>
                 </div>
               </div>
 
@@ -535,6 +587,103 @@ const CreateWorkoutPage = () => {
           addedExercisesCount={addedExercisesCount}
           currentSectionExercises={selectedSectionIndex !== null ? sections[selectedSectionIndex].exercises.length + addedExercisesCount : 0}
         />
+      )}
+
+      {/* Modal de Selección de Clientes */}
+      {showClientModal && clientModalType && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className={`w-full max-w-2xl rounded-2xl shadow-2xl backdrop-blur-sm ${
+              theme === 'dark' ? 'bg-slate-800/90 border border-slate-700/50' : 'bg-white/90 border border-gray-200/50'
+            } p-6 max-h-[80vh] overflow-y-auto`}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-xl font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                {clientModalType === 'new' ? 'Clientes Nuevos' : 'Clientes Antiguos'} 
+                ({clientModalType === 'new' ? newClients.length : oldClients.length})
+              </h3>
+              <button
+                onClick={() => {
+                  setShowClientModal(false)
+                  setClientModalType(null)
+                }}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-slate-700 text-slate-400' 
+                    : 'hover:bg-gray-100 text-gray-500'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {(clientModalType === 'new' ? newClients : oldClients).map((client) => (
+                <label
+                  key={client.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                    theme === 'dark' 
+                      ? selectedClients.has(client.id)
+                        ? 'bg-primary-600/20 border border-primary-500/50'
+                        : 'hover:bg-slate-700 border border-slate-600'
+                      : selectedClients.has(client.id)
+                        ? 'bg-primary-100 border border-primary-300'
+                        : 'hover:bg-gray-100 border border-gray-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedClients.has(client.id)}
+                    onChange={() => handleToggleClient(client.id)}
+                    className="w-5 h-5 text-primary-600 rounded focus:ring-primary-500"
+                  />
+                  <div className="flex-1">
+                    <span className={`font-semibold block ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {client.name}
+                    </span>
+                    <span className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                    }`}>
+                      {client.email}
+                    </span>
+                  </div>
+                </label>
+              ))}
+              {(clientModalType === 'new' ? newClients : oldClients).length === 0 && (
+                <p className={`text-center py-8 text-sm ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                }`}>
+                  No hay {clientModalType === 'new' ? 'clientes nuevos' : 'clientes antiguos'} disponibles
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6 pt-4 border-t border-slate-700/50">
+              <button
+                onClick={() => {
+                  setShowClientModal(false)
+                  setClientModalType(null)
+                }}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                  theme === 'dark'
+                    ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                }`}
+              >
+                Cerrar
+              </button>
+            </div>
+          </motion.div>
+        </div>
       )}
     </div>
   )

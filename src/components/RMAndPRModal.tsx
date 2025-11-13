@@ -100,6 +100,25 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
     loadData()
   }, [clientId, isOpen])
 
+  // Función helper para verificar si ya existe un registro para hoy
+  const hasRecordForToday = (records: RMRecord[] | PRRecord[]): boolean => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return records.some(record => {
+      let recordDate: Date
+      if (record.date instanceof Date) {
+        recordDate = new Date(record.date)
+      } else if (typeof record.date === 'number') {
+        recordDate = new Date(record.date)
+      } else {
+        return false
+      }
+      recordDate.setHours(0, 0, 0, 0)
+      return recordDate.getTime() === today.getTime()
+    })
+  }
+
   const saveRM = async () => {
     setSaving(true)
     try {
@@ -109,6 +128,19 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
       const existingData = await getDoc(dataRef)
       const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
       const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
+      
+      // Convertir a formato Date para verificación
+      const rmsWithDates = existingRms.map((rm: any) => ({
+        ...rm,
+        date: rm.date?.toDate ? rm.date.toDate() : (typeof rm.date === 'number' ? new Date(rm.date) : new Date())
+      }))
+      
+      // Verificar límite diario solo si NO es el coach (es decir, es el cliente)
+      if (!isCoach && hasRecordForToday(rmsWithDates)) {
+        alert('Ya has registrado un RM hoy. Solo puedes registrar uno por día.')
+        setSaving(false)
+        return
+      }
       
       // Crear nuevo RM con fecha como número (timestamp)
       // No usar serverTimestamp() dentro del array
@@ -191,6 +223,19 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
       const existingData = await getDoc(dataRef)
       const existingRms = existingData.exists() ? (existingData.data().rms || []) : []
       const existingPrs = existingData.exists() ? (existingData.data().prs || []) : []
+      
+      // Convertir a formato Date para verificación
+      const prsWithDates = existingPrs.map((pr: any) => ({
+        ...pr,
+        date: pr.date?.toDate ? pr.date.toDate() : (typeof pr.date === 'number' ? new Date(pr.date) : new Date())
+      }))
+      
+      // Verificar límite diario solo si NO es el coach (es decir, es el cliente)
+      if (!isCoach && hasRecordForToday(prsWithDates)) {
+        alert('Ya has registrado un PR hoy. Solo puedes registrar uno por día.')
+        setSaving(false)
+        return
+      }
       
       // Crear nuevo PR con fecha como número (timestamp)
       // No usar serverTimestamp() dentro del array
@@ -432,10 +477,10 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                         />
                         <button
                           onClick={handleAddRM}
-                          disabled={saving}
-                          className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                          disabled={saving || (!isCoach && hasRecordForToday(rms))}
+                          className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {saving ? 'Guardando...' : 'Guardar RM'}
+                          {saving ? 'Guardando...' : (!isCoach && hasRecordForToday(rms) ? 'Ya registraste un RM hoy' : 'Guardar RM')}
                         </button>
                       </div>
                     </motion.div>
@@ -536,10 +581,10 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                         />
                         <button
                           onClick={handleAddPR}
-                          disabled={saving}
-                          className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
+                          disabled={saving || (!isCoach && hasRecordForToday(prs))}
+                          className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {saving ? 'Guardando...' : 'Guardar PR'}
+                          {saving ? 'Guardando...' : (!isCoach && hasRecordForToday(prs) ? 'Ya registraste un PR hoy' : 'Guardar PR')}
                         </button>
                       </div>
                     </motion.div>
