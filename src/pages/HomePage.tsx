@@ -241,6 +241,34 @@ const HomePage = () => {
     }
   }, [user, isCoach])
 
+  // Función helper para verificar si un cliente está en línea
+  const isClientOnline = (client: Client): boolean => {
+    if (!client.lastLogin) return false
+    
+    try {
+      let lastLoginDate: Date
+      if (client.lastLogin.toDate) {
+        lastLoginDate = client.lastLogin.toDate()
+      } else if (client.lastLogin instanceof Date) {
+        lastLoginDate = client.lastLogin
+      } else if (typeof client.lastLogin === 'number') {
+        lastLoginDate = new Date(client.lastLogin)
+      } else {
+        return false
+      }
+      
+      const now = new Date()
+      const diffMs = now.getTime() - lastLoginDate.getTime()
+      const diffMinutes = diffMs / (1000 * 60)
+      
+      // Considerar en línea si lastLogin fue hace menos de 5 minutos
+      return diffMinutes < 5
+    } catch (error) {
+      console.error('Error checking if client is online:', error)
+      return false
+    }
+  }
+
   const handleClientClick = (clientId: string) => {
     navigate(`/client/${clientId}/workouts`)
   }
@@ -769,11 +797,13 @@ const HomePage = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                    client.status === 'active'
+                                    isClientOnline(client)
+                                      ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                      : client.status === 'active'
                                       ? 'bg-green-500/20 text-green-400 border border-green-500/50'
                                       : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                                   }`}>
-                                    {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
+                                    {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive'))}
                                   </span>
                                   {/* Dropdown de categoría y botón eliminar - Solo para coach */}
                                   <div className="flex items-center gap-2">
@@ -1193,11 +1223,13 @@ const HomePage = () => {
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                  client.status === 'active'
+                                  isClientOnline(client)
+                                    ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                    : client.status === 'active'
                                     ? 'bg-green-500/20 text-green-400 border border-green-500/50'
                                     : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
                                 }`}>
-                                  {client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive')}
+                                  {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.active') : t('dashboard.inactive'))}
                                 </span>
                                 {/* Dropdown de categoría y botón eliminar - Solo para coach */}
                                 <div className="flex items-center gap-2">

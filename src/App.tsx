@@ -4,6 +4,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { LanguageProvider } from './contexts/LanguageContext'
 import { TimerProvider } from './contexts/TimerContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { usePresence } from './hooks/usePresence'
 import HomePage from './pages/HomePage'
 import WorkoutPage from './pages/WorkoutPage'
 import ClientWorkoutPage from './pages/ClientWorkoutPage'
@@ -16,6 +17,9 @@ import LoginPage from './pages/Login'
 // Componente para proteger rutas que requieren autenticación
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
   const { user, loading } = useAuth()
+  
+  // Mantener presencia en línea
+  usePresence()
 
   if (loading) {
     return (

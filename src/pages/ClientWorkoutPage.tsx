@@ -524,14 +524,14 @@ const ClientWorkoutPage = () => {
                       </h2>
                       
                       {/* Fichas cuadradas lado a lado */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 w-full max-w-2xl mx-auto">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 w-full max-w-2xl mx-auto">
                         {/* Ficha del entrenamiento */}
                         <motion.div
                           key={currentDayIndex}
                           variants={cardVariants}
                           initial="hidden"
                           animate="visible"
-                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                          className={`relative rounded-xl p-2 sm:p-3 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
                             isFeedbackSubmitted 
                               ? 'opacity-60 cursor-not-allowed' 
                               : 'hover:shadow-2xl cursor-pointer'
@@ -571,7 +571,7 @@ const ClientWorkoutPage = () => {
                             variants={cardVariants}
                             initial="hidden"
                             animate="visible"
-                            className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                            className={`relative rounded-xl p-2 sm:p-3 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
                               theme === 'dark'
                                 ? 'bg-slate-700 hover:bg-slate-600'
                                 : 'bg-white hover:bg-gray-100 border border-gray-300'
@@ -738,60 +738,6 @@ const ClientWorkoutPage = () => {
           </motion.div>
         )}
         </motion.div>
-
-        {/* Mensaje Publicitario Lateral - Inferior Derecha - Solo para clientes, no para el coach */}
-        <AnimatePresence>
-          {showInfoModal && !isCoach && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.1 }}
-              className="fixed bottom-4 left-4 right-4 sm:bottom-6 sm:right-6 sm:left-auto z-50 max-w-sm sm:w-full"
-            >
-              <div className="bg-red-600/60 backdrop-blur-md text-white rounded-xl shadow-2xl border-2 border-red-500/30 p-4 relative overflow-hidden">
-                
-                {/* Botón de cerrar */}
-                <button
-                  onClick={() => setShowInfoModal(false)}
-                  className="absolute top-2 right-2 text-white hover:text-red-200 transition-colors z-10 bg-red-700/50 hover:bg-red-700/70 rounded-full p-1.5 shadow-lg"
-                  aria-label="Cerrar"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-
-                {/* Contenido */}
-                <div className="flex items-start gap-2 pr-6">
-                  {/* Icono de advertencia */}
-                  <div className="flex-shrink-0 mt-0.5">
-                    <svg 
-                      className="w-5 h-5" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                      />
-                    </svg>
-                  </div>
-                  {/* Texto optimizado */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold leading-relaxed break-words">
-                      <span className="hidden sm:inline">{t('alert.title')} {t('alert.text1')}</span>
-                      <span className="sm:hidden">Dolor o molestia: revisa alternativas. Para peso, escríbeme.</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Edit Workout Modal */}

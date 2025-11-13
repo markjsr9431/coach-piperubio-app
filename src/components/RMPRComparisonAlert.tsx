@@ -42,11 +42,11 @@ const RMPRComparisonAlert = ({
   const getTitle = () => {
     if (type === 'RM') {
       return comparisons.length > 0 
-        ? 'Otros clientes tienen un RM mayor o igual'
+        ? '¡Hey! Otros clientes compiten contigo'
         : 'Confirmar registro de RM'
     } else {
       return comparisons.length > 0
-        ? 'Otros clientes tienen un PR mejor o igual'
+        ? '¡Hey! Otros clientes compiten contigo'
         : 'Confirmar registro de PR'
     }
   }
@@ -54,11 +54,11 @@ const RMPRComparisonAlert = ({
   const getMessage = () => {
     if (type === 'RM') {
       return comparisons.length > 0
-        ? `Has registrado ${value} en ${exercise}, pero otros clientes tienen un RM mayor o igual:`
+        ? `Has registrado ${value} en ${exercise}. Otros clientes compiten contigo con una marca similar:`
         : `¿Deseas guardar este RM: ${value} en ${exercise}?`
     } else {
       return comparisons.length > 0
-        ? `Has registrado ${value} en ${exercise}, pero otros clientes tienen un PR mejor o igual (menor tiempo):`
+        ? `Has registrado ${value} en ${exercise}. Otros clientes compiten contigo con una marca similar:`
         : `¿Deseas guardar este PR: ${value} en ${exercise}?`
     }
   }

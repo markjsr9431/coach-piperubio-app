@@ -2,7 +2,8 @@ import { useState } from "react"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { useNavigate } from "react-router-dom"
 import { motion, AnimatePresence } from "framer-motion"
-import { auth } from "../firebaseConfig"
+import { auth, db } from "../firebaseConfig"
+import { collection, query, where, getDocs, updateDoc, doc, serverTimestamp } from "firebase/firestore"
 
 export default function Login() {
   const navigate = useNavigate()
@@ -22,6 +23,23 @@ export default function Login() {
       // Guardar contraseña temporalmente para restaurar sesión después de crear clientes
       if (email.toLowerCase() === 'piperubiocoach@gmail.com' || email.toLowerCase() === 'sebassennin@gmail.com') {
         sessionStorage.setItem('coach_password_temp', password)
+      } else {
+        // Actualizar lastLogin para clientes
+        try {
+          const clientsRef = collection(db, 'clients')
+          const q = query(clientsRef, where('email', '==', email.toLowerCase()))
+          const snapshot = await getDocs(q)
+          
+          if (!snapshot.empty) {
+            const clientDoc = snapshot.docs[0]
+            await updateDoc(doc(db, 'clients', clientDoc.id), {
+              lastLogin: serverTimestamp()
+            })
+          }
+        } catch (error) {
+          console.error('Error updating lastLogin:', error)
+          // Continuar aunque falle la actualización de lastLogin
+        }
       }
       
       navigate("/home")
