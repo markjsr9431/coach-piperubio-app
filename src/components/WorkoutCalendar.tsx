@@ -55,7 +55,7 @@ const WorkoutCalendar = ({
   }
   
   // Nombres de los días de la semana (Lunes a Sábado)
-  const dayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const dayNames = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB']
   
   // Nombres de los meses
   const monthNames = [
@@ -138,8 +138,8 @@ const WorkoutCalendar = ({
         <button
           onClick={goToPreviousMonth}
           className={`p-2 rounded-lg transition-colors ${
-            theme === 'dark' 
-              ? 'hover:bg-slate-700 text-slate-300' 
+            theme === 'dark'
+              ? 'hover:bg-slate-700 text-slate-300'
               : 'hover:bg-gray-100 text-gray-700'
           }`}
         >
@@ -147,7 +147,7 @@ const WorkoutCalendar = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        
+
         <div className="flex items-center gap-4">
           <h3 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
@@ -165,12 +165,12 @@ const WorkoutCalendar = ({
             </button>
           )}
         </div>
-        
+
         <button
           onClick={goToNextMonth}
           className={`p-2 rounded-lg transition-colors ${
-            theme === 'dark' 
-              ? 'hover:bg-slate-700 text-slate-300' 
+            theme === 'dark'
+              ? 'hover:bg-slate-700 text-slate-300'
               : 'hover:bg-gray-100 text-gray-700'
           }`}
         >
@@ -179,199 +179,216 @@ const WorkoutCalendar = ({
           </svg>
         </button>
       </div>
-      
-      {/* Días de la semana */}
-      <div className="grid grid-cols-6 gap-2 mb-2">
-        {dayNames.map((dayName) => (
-          <div
-            key={dayName}
-            className={`text-center text-sm font-semibold py-2 ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}
-          >
-            {dayName}
-          </div>
-        ))}
-      </div>
-      
-      {/* Días del calendario */}
-      <div className="grid grid-cols-6 gap-2">
-        {days.map((day, index) => {
-          if (day === null) {
-            return <div key={`empty-${index}`} className="aspect-square" />
-          }
-          
-          const dayOfWeek = getDayOfWeek(day)
-          const isSunday = dayOfWeek === 6
-          const isToday = isCurrentMonth && day === todayDay
-          const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
-          const isHoliday = isColombiaHoliday(date)
-          const holidayName = isHoliday ? getHolidayName(date) : null
-          const workoutInfo = hasWorkout(day)
-          const workoutDate = workoutInfo.dayIndex !== null ? workoutDates[workoutInfo.dayIndex] : null
-          const workoutDuration = workoutInfo.dayIndex !== null && workoutDurations ? workoutDurations[workoutInfo.dayIndex] : undefined
-          
-          // Verificar si la fecha del workout coincide con este día del calendario
-          const isWorkoutDateMatch = workoutDate && 
-            workoutDate.getDate() === day &&
-            workoutDate.getMonth() === currentMonth.getMonth() &&
-            workoutDate.getFullYear() === currentMonth.getFullYear()
-          
-          // Los domingos ya están excluidos del grid, pero por seguridad verificamos
-          if (isSunday) {
-            return <div key={`sunday-${day}`} className="aspect-square" />
-          }
-          
-          // Si es festivo, mostrar indicador especial
-          if (isHoliday && !workoutInfo.hasWorkout) {
-            return (
-              <div
-                key={day}
-                className={`aspect-square rounded-lg flex flex-col items-center justify-center p-1 ${
-                  theme === 'dark' ? 'bg-yellow-900/30 border border-yellow-700/50' : 'bg-yellow-100 border border-yellow-300'
-                }`}
-                title={holidayName || 'Festivo'}
-              >
-                <div className={`text-lg font-bold mb-1 ${
-                  theme === 'dark' ? 'text-yellow-300' : 'text-yellow-700'
-                }`}>
-                  {day}
-                </div>
-                <div className={`text-[8px] text-center leading-tight ${
-                  theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-                }`}>
-                  {holidayName || 'Festivo'}
-                </div>
-              </div>
-            )
-          }
-          
-          const isSaturday = dayOfWeek === 5
-          const hasWorkoutAssigned = workoutInfo.hasWorkout
-          const isHolidayWithWorkout = isHoliday && hasWorkoutAssigned
-          
-          return (
-            <motion.div
-              key={day}
-              whileHover={hasWorkoutAssigned || isCoach ? { scale: 1.05 } : {}}
-              whileTap={hasWorkoutAssigned || isCoach ? { scale: 0.95 } : {}}
-              onClick={() => {
-                if (workoutInfo.dayIndex !== null) {
-                  // Permitir hacer clic si hay un workout para este día (coach o cliente)
-                  onDayClick(workoutInfo.dayIndex)
-                }
-              }}
-              className={`aspect-square rounded-lg p-2 flex flex-col items-center justify-center transition-all ${
-                workoutInfo.dayIndex !== null
-                  ? 'cursor-pointer'
-                  : 'cursor-default'
-              } ${
-                hasWorkoutAssigned
-                  ? isWorkoutDateMatch
-                    ? theme === 'dark'
-                      ? 'bg-green-600/30 border-2 border-green-500'
-                      : 'bg-green-100 border-2 border-green-500'
-                    : isHolidayWithWorkout
-                    ? theme === 'dark'
-                      ? 'bg-yellow-600/30 border-2 border-yellow-500'
-                      : 'bg-yellow-100 border-2 border-yellow-500'
-                    : theme === 'dark'
-                    ? 'bg-primary-600/30 border border-primary-500/50 hover:bg-primary-600/50'
-                    : 'bg-primary-100 border border-primary-300 hover:bg-primary-200'
-                  : isHoliday
-                  ? theme === 'dark'
-                    ? 'bg-yellow-900/30 border border-yellow-700/50'
-                    : 'bg-yellow-50 border border-yellow-200'
-                  : theme === 'dark'
-                  ? 'bg-slate-700/30 border border-slate-600/50'
-                  : 'bg-gray-50 border border-gray-200'
-              } ${isToday ? 'ring-2 ring-primary-500' : ''}`}
+
+      <div className="relative">
+        <div className="overflow-x-auto">
+          <div className="min-w-[420px] space-y-3">
+            {/* Días de la semana */}
+            <div
+              className={`grid grid-cols-6 gap-2 sticky top-0 z-20 py-2 ${
+                theme === 'dark'
+                  ? 'bg-slate-800/90 backdrop-blur'
+                  : 'bg-white/95 backdrop-blur'
+              }`}
             >
-              <div className={`text-lg font-bold mb-1 ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
-                {day}
-              </div>
-              
-              {isHoliday && (
-                <div className={`text-[8px] mb-1 text-center leading-tight ${
-                  theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-                }`}>
-                  {holidayName || 'Festivo'}
+              {dayNames.map((dayName) => (
+                <div
+                  key={dayName}
+                  className={`text-center text-xs font-semibold tracking-wide ${
+                    theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+                  }`}
+                >
+                  {dayName}
                 </div>
-              )}
-              
-              {hasWorkoutAssigned && workoutInfo.dayName && (
-                <>
-                  <div className={`text-xs font-semibold text-center ${
-                    theme === 'dark' ? 'text-primary-200' : 'text-primary-700'
-                  }`}>
-                    {workoutInfo.dayName}
-                    {isSaturday && ' (Op)'}
-                  </div>
-                  
-                  {workoutInfo.dayIndex !== null && workouts[workoutInfo.dayIndex] && (
-                    <div className={`text-xs mt-1 ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
-                    }`}>
-                      {workouts[workoutInfo.dayIndex].sections.reduce((acc, section) => acc + section.exercises.length, 0)} ej.
-                    </div>
-                  )}
-                  
-                  {workoutDuration && (
-                    <div className={`text-xs mt-1 font-semibold ${
-                      theme === 'dark' ? 'text-green-300' : 'text-green-700'
-                    }`}>
-                      ⏱️ {formatWorkoutDuration(workoutDuration)}
-                    </div>
-                  )}
-                  
-                  {isCoach && workoutInfo.dayIndex !== null && (
-                    <div className="flex gap-1 mt-1">
-                      {onEditWorkout && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onEditWorkout(workoutInfo.dayIndex!)
-                          }}
-                          className={`p-1 rounded ${
-                            theme === 'dark'
-                              ? 'bg-white/20 hover:bg-white/30'
-                              : 'bg-gray-200 hover:bg-gray-300'
+              ))}
+            </div>
+
+            {/* Días del calendario */}
+            <div className="grid grid-cols-6 gap-2">
+              {days.map((day, index) => {
+                if (day === null) {
+                  return <div key={`empty-${index}`} className="aspect-square" />
+                }
+
+                const dayOfWeek = getDayOfWeek(day)
+                const isSunday = dayOfWeek === 6
+
+                if (isSunday) {
+                  return <div key={`sunday-${day}`} className="aspect-square" />
+                }
+
+                const isToday = isCurrentMonth && day === todayDay
+                const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+                const isHoliday = isColombiaHoliday(date)
+                const holidayName = isHoliday ? getHolidayName(date) : null
+                const workoutInfo = hasWorkout(day)
+                const workoutDate = workoutInfo.dayIndex !== null ? workoutDates[workoutInfo.dayIndex] : null
+                const workoutDuration =
+                  workoutInfo.dayIndex !== null && workoutDurations ? workoutDurations[workoutInfo.dayIndex] : undefined
+
+                const hasWorkoutAssigned = workoutInfo.hasWorkout
+                const isWorkoutDateMatch = Boolean(
+                  workoutDate &&
+                  workoutDate.getDate() === day &&
+                  workoutDate.getMonth() === currentMonth.getMonth() &&
+                  workoutDate.getFullYear() === currentMonth.getFullYear()
+                )
+                const isHolidayWithWorkout = isHoliday && hasWorkoutAssigned
+
+                let paletteClasses = ''
+
+                if (hasWorkoutAssigned) {
+                  if (isWorkoutDateMatch) {
+                    paletteClasses = theme === 'dark'
+                      ? 'bg-green-600/25 border-2 border-green-500'
+                      : 'bg-green-100 border-2 border-green-500'
+                  } else if (isHolidayWithWorkout) {
+                    paletteClasses = theme === 'dark'
+                      ? 'bg-yellow-600/25 border border-yellow-500/70'
+                      : 'bg-yellow-100 border border-yellow-300'
+                  } else {
+                    paletteClasses = theme === 'dark'
+                      ? 'bg-primary-600/25 border border-primary-500/60 hover:bg-primary-600/35'
+                      : 'bg-primary-50 border border-primary-200 hover:bg-primary-100'
+                  }
+                } else {
+                  if (isHoliday) {
+                    paletteClasses = theme === 'dark'
+                      ? 'bg-yellow-500/15 border border-yellow-500/50'
+                      : 'bg-yellow-50 border border-yellow-200'
+                  } else {
+                    paletteClasses = theme === 'dark'
+                      ? 'bg-slate-700/40 border border-slate-600/50'
+                      : 'bg-gray-50 border border-gray-200'
+                  }
+                }
+
+                const exercisesCount =
+                  workoutInfo.dayIndex !== null && workouts[workoutInfo.dayIndex]
+                    ? workouts[workoutInfo.dayIndex].sections.reduce(
+                        (acc, section) => acc + section.exercises.length,
+                        0
+                      )
+                    : null
+
+                return (
+                  <motion.div
+                    key={day}
+                    whileHover={hasWorkoutAssigned || isCoach ? { scale: 1.05 } : {}}
+                    whileTap={hasWorkoutAssigned || isCoach ? { scale: 0.95 } : {}}
+                    onClick={() => {
+                      if (workoutInfo.dayIndex !== null) {
+                        onDayClick(workoutInfo.dayIndex)
+                      }
+                    }}
+                    className={`group relative aspect-square rounded-lg p-2 flex overflow-hidden transition-all ${
+                      workoutInfo.dayIndex !== null ? 'cursor-pointer' : 'cursor-default'
+                    } ${paletteClasses} ${isToday ? 'ring-2 ring-primary-500' : ''}`}
+                    title={isHoliday ? holidayName || 'Festivo' : undefined}
+                  >
+                    <div className="flex flex-col h-full w-full">
+                      <div className="flex items-start justify-between">
+                        <span
+                          className={`text-base sm:text-lg font-semibold ${
+                            theme === 'dark' ? 'text-white' : 'text-gray-900'
                           }`}
-                          title="Editar entrenamiento"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
-                      )}
-                      {onResetDay && workoutDuration && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onResetDay(workoutInfo.dayIndex!)
-                          }}
-                          className={`p-1 rounded ${
-                            theme === 'dark'
-                              ? 'bg-red-500/20 hover:bg-red-500/30'
-                              : 'bg-red-100 hover:bg-red-200'
-                          }`}
-                          title="Restablecer día"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                        </button>
+                          {day}
+                        </span>
+                        {isHoliday && (
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${
+                              theme === 'dark' ? 'bg-yellow-400' : 'bg-yellow-500'
+                            }`}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </div>
+
+                      {hasWorkoutAssigned && (
+                        <div className="mt-auto w-full">
+                          <div className="flex items-end justify-between gap-2">
+                            <div className="flex flex-col gap-1">
+                              {exercisesCount !== null && (
+                                <span
+                                  className={`text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
+                                    theme === 'dark' ? 'text-primary-200' : 'text-primary-700'
+                                  }`}
+                                >
+                                  {exercisesCount} ej.
+                                </span>
+                              )}
+                              {workoutDuration && (
+                                <span
+                                  className={`text-[10px] sm:text-xs font-medium whitespace-nowrap ${
+                                    theme === 'dark' ? 'text-green-300' : 'text-green-700'
+                                  }`}
+                                >
+                                  ⏱ {formatWorkoutDuration(workoutDuration)}
+                                </span>
+                              )}
+                            </div>
+
+                            {isCoach && workoutInfo.dayIndex !== null && (
+                              <div className="flex gap-1">
+                                {onEditWorkout && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      onEditWorkout(workoutInfo.dayIndex!)
+                                    }}
+                                    className={`p-1 rounded transition-colors ${
+                                      theme === 'dark'
+                                        ? 'bg-white/15 hover:bg-white/25'
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                    }`}
+                                    title="Editar entrenamiento"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                      />
+                                    </svg>
+                                  </button>
+                                )}
+                                {onResetDay && workoutDuration && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      onResetDay(workoutInfo.dayIndex!)
+                                    }}
+                                    className={`p-1 rounded transition-colors ${
+                                      theme === 'dark'
+                                        ? 'bg-red-500/20 hover:bg-red-500/30'
+                                        : 'bg-red-100 hover:bg-red-200'
+                                    }`}
+                                    title="Restablecer día"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                      />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  )}
-                  
-                </>
-              )}
-            </motion.div>
-          )
-        })}
+                  </motion.div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
