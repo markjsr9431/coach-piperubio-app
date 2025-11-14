@@ -22,7 +22,6 @@ const TopBanner = () => {
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [clientName, setClientName] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
-  const [nameWidth, setNameWidth] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
   const nameRef = useRef<HTMLHeadingElement>(null)
   const isHomePage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/home'
@@ -311,17 +310,17 @@ const TopBanner = () => {
   }, [])
 
   // Medir ancho del nombre para detectar estiramiento (opcional, para futuras mejoras)
-  useEffect(() => {
-    if (nameRef.current && isMobile) {
-      const observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setNameWidth(entry.contentRect.width)
-        }
-      })
-      observer.observe(nameRef.current)
-      return () => observer.disconnect()
-    }
-  }, [isMobile, isScrolled, clientName, clientDisplayName, user])
+  // useEffect(() => {
+  //   if (nameRef.current && isMobile) {
+  //     const observer = new ResizeObserver((entries) => {
+  //       for (const entry of entries) {
+  //         // nameWidth podría usarse en el futuro para detectar estiramiento dinámico
+  //       }
+  //     })
+  //     observer.observe(nameRef.current)
+  //     return () => observer.disconnect()
+  //   }
+  // }, [isMobile, isScrolled, clientName, clientDisplayName, user])
 
   return (
     <motion.div

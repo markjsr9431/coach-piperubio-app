@@ -243,7 +243,6 @@ const WorkoutCalendar = ({
             )
           }
           
-          const isSaturday = dayOfWeek === 5
           const hasWorkoutAssigned = workoutInfo.hasWorkout
           const isHolidayWithWorkout = isHoliday && hasWorkoutAssigned
           
