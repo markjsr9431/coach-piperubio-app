@@ -6,7 +6,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { workouts, Workout } from '../data/workouts'
 import { db } from '../firebaseConfig'
-import { collection, getDocs, doc, deleteDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 import ProgressTracker from '../components/ProgressTracker'
@@ -99,47 +99,6 @@ const ClientWorkoutPage = () => {
         })
 
         setClientWorkouts(updatedWorkouts)
-
-        // Cargar tiempos de entrenamiento y fechas reales para cada día - Optimizado
-        // Cargar todos los documentos de progreso en una sola consulta
-        const durations: { [dayIndex: number]: number } = {}
-        const dates: { [dayIndex: number]: Date } = {}
-        
-        try {
-          const progressCollectionRef = collection(db, 'clients', clientId, 'progress')
-          const progressSnapshot = await getDocs(progressCollectionRef)
-          
-          progressSnapshot.forEach((progressDoc) => {
-            // Ignorar el documento 'summary'
-            if (progressDoc.id === 'summary') return
-            
-            // Extraer el número del día del ID (formato: "day-1", "day-2", etc.)
-            const dayMatch = progressDoc.id.match(/^day-(\d+)$/)
-            if (!dayMatch) return
-            
-            const dayIndex = parseInt(dayMatch[1]) - 1 // Convertir a índice 0-based
-            if (dayIndex < 0 || dayIndex >= 30) return
-            
-            const progressData = progressDoc.data()
-            
-            if (progressData.workoutDuration) {
-              durations[dayIndex] = progressData.workoutDuration
-            }
-            
-            // Obtener fecha real de completado
-            if (progressData.completedAt) {
-              const completedDate = progressData.completedAt?.toDate 
-                ? progressData.completedAt.toDate() 
-                : new Date(progressData.completedAt)
-              dates[dayIndex] = completedDate
-            }
-          })
-        } catch (error) {
-          console.error('Error loading progress data:', error)
-        }
-        
-        setWorkoutDurations(durations)
-        setWorkoutDates(dates)
       } catch (error) {
         console.error('Error loading workouts:', error)
         setClientWorkouts(workouts)
