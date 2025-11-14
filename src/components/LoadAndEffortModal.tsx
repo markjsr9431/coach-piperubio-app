@@ -19,7 +19,7 @@ interface ImplementEntry {
 interface DailyRecord {
   id: string
   date: number
-  implements: Array<{ implement: string, load: string }>
+  implementos: Array<{ implement: string, load: string }>
   rpe: number
 }
 
@@ -28,7 +28,7 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
   const [saving, setSaving] = useState(false)
   const [hasRecordToday, setHasRecordToday] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [implements, setImplements] = useState<ImplementEntry[]>([])
+  const [implementos, setImplementos] = useState<ImplementEntry[]>([])
   const [rpe, setRpe] = useState(5)
 
   const implementOptions = [
@@ -87,15 +87,15 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
       implement: '',
       load: ''
     }
-    setImplements(prev => [...prev, newImplement])
+    setImplementos(prev => [...prev, newImplement])
   }
 
   const handleRemoveImplement = (id: string) => {
-    setImplements(prev => prev.filter(imp => imp.id !== id))
+    setImplementos(prev => prev.filter(imp => imp.id !== id))
   }
 
   const handleImplementChange = (id: string, field: 'implement' | 'load', value: string) => {
-    setImplements(prev => prev.map(imp => 
+    setImplementos(prev => prev.map(imp => 
       imp.id === id ? { ...imp, [field]: value } : imp
     ))
   }
@@ -112,8 +112,8 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
     }
 
     // Validar que al menos un implemento tenga ambos campos completos
-    const validImplements = implements.filter(imp => imp.implement && imp.load)
-    if (validImplements.length === 0) {
+    const validImplementos = implementos.filter(imp => imp.implement && imp.load)
+    if (validImplementos.length === 0) {
       alert('Por favor agrega al menos un implemento con su carga')
       return
     }
@@ -134,7 +134,7 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
       const newRecord: DailyRecord = {
         id: Date.now().toString(),
         date: todayTimestamp,
-        implements: validImplements.map(imp => ({
+        implementos: validImplementos.map(imp => ({
           implement: imp.implement,
           load: imp.load
         })),
@@ -149,7 +149,7 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
       }, { merge: true })
 
       // Resetear formulario
-      setImplements([])
+      setImplementos([])
       setRpe(5)
       setHasRecordToday(true)
       alert('Registro guardado exitosamente')
@@ -254,14 +254,14 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                   </div>
                   
                   <div className="space-y-4">
-                    {implements.length === 0 ? (
+                    {implementos.length === 0 ? (
                       <p className={`text-sm text-center py-4 ${
                         theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
                       }`}>
                         Haz clic en "+ Agregar Implemento" para comenzar
                       </p>
                     ) : (
-                      implements.map((imp, index) => (
+                      implementos.map((imp, index) => (
                         <div key={imp.id} className={`p-4 rounded-lg border ${
                           theme === 'dark' ? 'bg-slate-800/50 border-slate-600' : 'bg-white border-gray-300'
                         }`}>
@@ -271,7 +271,7 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                             }`}>
                               Implemento {index + 1}
                             </span>
-                            {implements.length > 1 && (
+                            {implementos.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() => handleRemoveImplement(imp.id)}
@@ -421,9 +421,9 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                   </button>
                   <button
                     type="submit"
-                    disabled={saving || implements.filter(imp => imp.implement && imp.load).length === 0}
+                    disabled={saving || implementos.filter(imp => imp.implement && imp.load).length === 0}
                     className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-colors ${
-                      saving || implements.filter(imp => imp.implement && imp.load).length === 0
+                      saving || implementos.filter(imp => imp.implement && imp.load).length === 0
                         ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                         : 'bg-primary-600 text-white hover:bg-primary-700'
                     }`}
