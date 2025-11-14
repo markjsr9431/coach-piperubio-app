@@ -31,8 +31,6 @@ const ClientWorkoutPage = () => {
   } | null>(null)
   const [currentDayIndex, setCurrentDayIndex] = useState<number | null>(null)
   const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
-  const [workoutDurations, setWorkoutDurations] = useState<{ [dayIndex: number]: number }>({})
-  const [workoutDates, setWorkoutDates] = useState<{ [dayIndex: number]: Date }>({})
 
   // Calcular el día actual según la fecha
   useEffect(() => {
@@ -191,10 +189,6 @@ const ClientWorkoutPage = () => {
     navigate(`/client/${clientId}/workout/${dayIndex + 1}`)
   }
 
-  const handleEditWorkout = (dayIndex: number) => {
-    setEditingDayIndex(dayIndex)
-  }
-
   const handleWorkoutSaved = () => {
     // Recargar entrenamientos
     const loadWorkouts = async () => {
@@ -223,89 +217,6 @@ const ClientWorkoutPage = () => {
     loadWorkouts()
   }
 
-
-
-  const handleResetDay = async (dayIndex: number) => {
-    if (!clientId) return
-
-    if (!confirm(`¿Estás seguro de que quieres restablecer el día ${dayIndex + 1}? Esto eliminará el progreso completado.`)) {
-      return
-    }
-
-    try {
-      // Eliminar documento de progreso del día
-      const progressRef = doc(db, 'clients', clientId, 'progress', `day-${dayIndex + 1}`)
-      await deleteDoc(progressRef)
-      
-      // Eliminar datos de localStorage relacionados
-      const feedbackKey = `feedback_${clientId}_day_${dayIndex + 1}`
-      const feedbackSubmittedKey = `feedback_submitted_${clientId}_day_${dayIndex + 1}`
-      localStorage.removeItem(feedbackKey)
-      localStorage.removeItem(feedbackSubmittedKey)
-      
-      // Actualizar el documento summary para remover el día del dailyProgress
-      const summaryRef = doc(db, 'clients', clientId, 'progress', 'summary')
-      const summaryDoc = await getDoc(summaryRef)
-      
-      if (summaryDoc.exists()) {
-        // const summaryData = summaryDoc.data()
-        // const dailyProgress = summaryData.dailyProgress || {}
-        
-        // Remover el día del dailyProgress
-        // const today = new Date().toISOString().split('T')[0]
-        // Buscar y eliminar cualquier entrada que corresponda a este día
-        // Necesitamos buscar por fecha de completado, pero como no tenemos esa info aquí,
-        // eliminaremos todas las entradas y recalcularemos
-        const updatedDailyProgress: { [key: string]: boolean } = {}
-        // let hasChanges = false
-        
-        // Recalcular dailyProgress basado en los documentos de progreso existentes
-        for (let i = 0; i < 30; i++) {
-          if (i !== dayIndex) {
-            try {
-              const dayProgressRef = doc(db, 'clients', clientId, 'progress', `day-${i + 1}`)
-              const dayProgressDoc = await getDoc(dayProgressRef)
-              if (dayProgressDoc.exists()) {
-                const dayData = dayProgressDoc.data()
-                if (dayData.completedAt) {
-                  const completedDate = dayData.completedAt?.toDate 
-                    ? dayData.completedAt.toDate().toISOString().split('T')[0]
-                    : new Date(dayData.completedAt).toISOString().split('T')[0]
-                  updatedDailyProgress[completedDate] = true
-                }
-              }
-            } catch (error) {
-              // Continuar si hay error
-            }
-          }
-        }
-        
-        // Calcular días completados
-        const completedDays = Object.values(updatedDailyProgress).filter(Boolean).length
-        const totalDays = 30
-        const monthlyProgress = totalDays > 0 ? (completedDays / totalDays) * 100 : 0
-        
-        await updateDoc(summaryRef, {
-          dailyProgress: updatedDailyProgress,
-          completedDays,
-          monthlyProgress,
-          lastUpdated: serverTimestamp()
-        })
-      }
-      
-      // Actualizar estado local
-      setWorkoutDurations(prev => {
-        const updated = { ...prev }
-        delete updated[dayIndex]
-        return updated
-      })
-      
-      alert('Día restablecido exitosamente')
-    } catch (error) {
-      console.error('Error resetting day:', error)
-      alert('Error al restablecer el día')
-    }
-  }
 
 
   const containerVariants = {
@@ -377,7 +288,6 @@ const ClientWorkoutPage = () => {
                 <ClientInfoSection
                   clientId={clientId}
                   showSaveButtons={false} // No save buttons on this page
-                  showExportButton={false} // No export button on this page
                   showProgressButton={true} // Show progress button
                 />
               </div>

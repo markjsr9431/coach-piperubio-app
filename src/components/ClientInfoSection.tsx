@@ -10,12 +10,11 @@ import { updateProfile } from 'firebase/auth'
 interface ClientInfoSectionProps {
   clientId: string
   showSaveButtons?: boolean
-  showExportButton?: boolean
   showProgressButton?: boolean
   onExportReady?: (exportFn: () => Promise<void>) => void
 }
 
-const ClientInfoSection = ({ clientId, showSaveButtons = false, showExportButton = false, showProgressButton = true, onExportReady }: ClientInfoSectionProps) => {
+const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButton = true, onExportReady }: ClientInfoSectionProps) => {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const { user } = useAuth()
