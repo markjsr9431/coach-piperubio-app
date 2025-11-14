@@ -11,7 +11,7 @@ import TopBanner from '../components/TopBanner'
 import EditWorkoutModal from '../components/EditWorkoutModal'
 import ProgressTracker from '../components/ProgressTracker'
 import RMAndPRModal from '../components/RMAndPRModal'
-import WorkoutCalendar from '../components/WorkoutCalendar'
+import ClientInfoSection from '../components/ClientInfoSection'
 
 const ClientWorkoutPage = () => {
   const navigate = useNavigate()
@@ -24,9 +24,6 @@ const ClientWorkoutPage = () => {
   const [clientWorkouts, setClientWorkouts] = useState<Workout[]>(workouts)
   const [editingDayIndex, setEditingDayIndex] = useState<number | null>(null)
   const [loadingWorkouts, setLoadingWorkouts] = useState(true)
-  const [selectionMode, setSelectionMode] = useState(false)
-  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
-  const [deleting, setDeleting] = useState(false)
   const [clientProgress, setClientProgress] = useState<{
     monthlyProgress: number
     completedDays: number
@@ -227,33 +224,6 @@ const ClientWorkoutPage = () => {
   }
 
 
-  const handleDeleteSelectedDays = async () => {
-    if (selectedDays.size === 0 || !clientId) return
-
-    if (!confirm(`¿Estás seguro de que quieres eliminar ${selectedDays.size} día(s) de entrenamiento?`)) {
-      return
-    }
-
-    setDeleting(true)
-    try {
-      const deletePromises = Array.from(selectedDays).map(async (dayIndex) => {
-        const workoutRef = doc(db, 'clients', clientId, 'workouts', `day-${dayIndex + 1}`)
-        await deleteDoc(workoutRef)
-      })
-
-      await Promise.all(deletePromises)
-      
-      // Recargar entrenamientos
-      handleWorkoutSaved()
-      setSelectedDays(new Set())
-      setSelectionMode(false)
-    } catch (error) {
-      console.error('Error deleting workouts:', error)
-      alert('Error al eliminar los entrenamientos')
-    } finally {
-      setDeleting(false)
-    }
-  }
 
   const handleResetDay = async (dayIndex: number) => {
     if (!clientId) return
@@ -401,51 +371,15 @@ const ClientWorkoutPage = () => {
               theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
             }`}>{t('workout.interactive')}</p>
             
-            {/* Botones de gestión - Solo para coach */}
-            {isCoach && (
-              <div className="flex justify-center gap-4 mt-6 flex-wrap">
-                <button
-                  onClick={() => navigate(`/client/${clientId}/profile`)}
-                  className="px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Información del Cliente
-                </button>
-                {!selectionMode ? (
-                  <button
-                    onClick={() => setSelectionMode(true)}
-                    className="px-3 py-1.5 sm:px-6 sm:py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-1 sm:gap-2 text-xs sm:text-base"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    Seleccionar Días
-                  </button>
-                ) : (
-                  <div className="flex gap-4">
-                    <button
-                      onClick={() => {
-                        setSelectionMode(false)
-                        setSelectedDays(new Set())
-                      }}
-                      className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      onClick={handleDeleteSelectedDays}
-                      disabled={selectedDays.size === 0 || deleting}
-                      className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      {deleting ? 'Eliminando...' : `Eliminar (${selectedDays.size})`}
-                    </button>
-                  </div>
-                )}
+            {/* Información del Cliente - Integrada directamente - Solo para coach */}
+            {isCoach && clientId && (
+              <div className="mt-8">
+                <ClientInfoSection
+                  clientId={clientId}
+                  showSaveButtons={false} // No save buttons on this page
+                  showExportButton={false} // No export button on this page
+                  showProgressButton={true} // Show progress button
+                />
               </div>
             )}
           </div>
@@ -705,18 +639,7 @@ const ClientWorkoutPage = () => {
                 </div>
               )}
               </motion.div>
-            ) : (
-              // Para el coach, mostrar siempre el calendario
-              <WorkoutCalendar
-                workouts={clientWorkouts}
-                workoutDates={workoutDates}
-                workoutDurations={workoutDurations}
-                onDayClick={handleDayClick}
-                onEditWorkout={isCoach ? handleEditWorkout : undefined}
-                onResetDay={isCoach ? handleResetDay : undefined}
-                isCoach={isCoach}
-              />
-            )}
+            ) : null}
           </>
         )}
         </motion.div>

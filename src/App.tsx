@@ -12,6 +12,8 @@ import ClientProfilePage from './pages/ClientProfilePage'
 import ExercisesPage from './pages/ExercisesPage'
 import CreateWorkoutPage from './pages/CreateWorkoutPage'
 import ProgressChartsPage from './pages/ProgressChartsPage'
+import FeedbackPage from './pages/FeedbackPage'
+import RMAndPRPage from './pages/RMAndPRPage'
 import LoginPage from './pages/Login'
 
 // Componente para proteger rutas que requieren autenticación
@@ -102,6 +104,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ProgressChartsPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/client/:clientId/feedback" 
+        element={
+          <ProtectedRoute>
+            <FeedbackPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/client/:clientId/rm-pr" 
+        element={
+          <ProtectedRoute>
+            <RMAndPRPage />
           </ProtectedRoute>
         } 
       />
