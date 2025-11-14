@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
-import { useLanguage } from '../contexts/LanguageContext'
 import { db } from '../firebaseConfig'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 
@@ -21,7 +20,6 @@ interface DailyRecord {
 
 const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalProps) => {
   const { theme } = useTheme()
-  const { t } = useLanguage()
   const [saving, setSaving] = useState(false)
   const [hasRecordToday, setHasRecordToday] = useState(false)
   const [loading, setLoading] = useState(true)

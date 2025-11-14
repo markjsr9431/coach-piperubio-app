@@ -46,7 +46,6 @@ const WorkoutPage = () => {
 
   const totalExercises = workout?.sections.reduce((acc, section) => acc + section.exercises.length, 0) || 0
   const progress = totalExercises > 0 ? (completedExercises.size / totalExercises) * 100 : 0
-  const isWorkoutComplete = totalExercises > 0 && completedExercises.size === totalExercises
   const isDayCompleted = dayProgress?.progress === 100
 
   // Cargar entrenamiento personalizado si hay clientId
@@ -92,18 +91,12 @@ const WorkoutPage = () => {
               })
               setCompletedExercises(completedSet)
               setDayProgress({ progress: 100, completedExercises: completedSet })
-              // Establecer lastCompletedCount al total para evitar que se muestre el modal al cargar un día ya completo
-              setLastCompletedCount(completedSet.size)
-              hasShownCompleteRef.current = true // Marcar que ya se mostró (o no debe mostrarse porque ya estaba completo)
             } else {
               setDayProgress({ progress: savedProgress, completedExercises: new Set() })
-              setLastCompletedCount(0)
             }
           } else {
             setDayProgress(null)
             setCompletedExercises(new Set())
-            setLastCompletedCount(0)
-            hasShownCompleteRef.current = false
           }
         } catch (error) {
           console.error('Error loading workout:', error)
@@ -127,10 +120,6 @@ const WorkoutPage = () => {
     if (workout && workout.sections && workout.sections.length > 0) {
       setExpandedSections(new Set([workout.sections[0].name]))
     }
-    // Reset completion state when day changes
-    setShowComplete(false)
-    hasShownCompleteRef.current = false
-    // No resetear lastCompletedCount aquí, se establecerá cuando se cargue el progreso
     
     // Iniciar timer de entrenamiento cuando se carga la página (solo para clientes y si el día no está completo)
     if (!isCoach && clientId && workout && !isDayCompleted) {

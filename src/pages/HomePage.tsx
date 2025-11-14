@@ -12,7 +12,6 @@ import LoadAndEffortModal from '../components/LoadAndEffortModal'
 import CoachContactModal from '../components/CoachContactModal'
 import { db } from '../firebaseConfig'
 import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore'
-import { calculateTimeActive } from '../utils/timeUtils'
 import ProgressTracker from '../components/ProgressTracker'
 
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
