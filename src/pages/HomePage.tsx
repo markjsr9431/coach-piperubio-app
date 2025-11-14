@@ -7,6 +7,9 @@ import { useAuth } from '../contexts/AuthContext'
 import TopBanner from '../components/TopBanner'
 import AddClientModal from '../components/AddClientModal'
 import ImportClientsModal from '../components/ImportClientsModal'
+import RMAndPRModal from '../components/RMAndPRModal'
+import LoadAndEffortModal from '../components/LoadAndEffortModal'
+import CoachContactModal from '../components/CoachContactModal'
 import { db } from '../firebaseConfig'
 import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore'
 import { calculateTimeActive } from '../utils/timeUtils'
@@ -59,6 +62,9 @@ const HomePage = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [clientData, setClientData] = useState<any>(null)
+  const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
+  const [showLoadAndEffortModal, setShowLoadAndEffortModal] = useState(false)
+  const [showCoachContactModal, setShowCoachContactModal] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [activeCategory, setActiveCategory] = useState<'new' | 'old' | null>(null)
   const [isAllClientsCollapsed, setIsAllClientsCollapsed] = useState(false)
@@ -297,7 +303,7 @@ const HomePage = () => {
   }
 
   const handleClientClick = (clientId: string) => {
-    navigate(`/client/${clientId}/workouts`)
+    navigate(`/client/${clientId}/profile`)
   }
 
   const handleAddClient = () => {
@@ -430,17 +436,127 @@ const HomePage = () => {
                 : (clientData?.name || user?.displayName || user?.email || 'Cliente')
               }
             </motion.p>
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className={`text-lg mt-2 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-              }`}
-            >
-              {isCoach ? t('dashboard.subtitle') : t('dashboard.clientSubtitle')}
-            </motion.p>
+            {isCoach && (
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className={`text-lg mt-2 ${
+                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                }`}
+              >
+                {t('dashboard.subtitle')}
+              </motion.p>
+            )}
           </div>
+
+          {/* Fichas de Acceso Rápido - Solo visible para clientes */}
+          {!isCoach && clientData?.id && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="mb-8"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Ficha 1: RM y PR */}
+                <motion.button
+                  onClick={() => setShowRMAndPRModal(true)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-6 rounded-xl shadow-lg transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/80'
+                      : 'bg-white border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className={`p-4 rounded-full ${
+                      theme === 'dark' ? 'bg-primary-600/20' : 'bg-primary-100'
+                    }`}>
+                      <svg className="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <h3 className={`text-lg font-bold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      RM y PR
+                    </h3>
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+                    }`}>
+                      Registra tus repeticiones máximas y récords personales
+                    </p>
+                  </div>
+                </motion.button>
+
+                {/* Ficha 2: Registro de Carga y Esfuerzo */}
+                <motion.button
+                  onClick={() => setShowLoadAndEffortModal(true)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-6 rounded-xl shadow-lg transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/80'
+                      : 'bg-white border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className={`p-4 rounded-full ${
+                      theme === 'dark' ? 'bg-orange-600/20' : 'bg-orange-100'
+                    }`}>
+                      <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <h3 className={`text-lg font-bold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Registro de Carga y Esfuerzo
+                    </h3>
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+                    }`}>
+                      Registra la carga utilizada y tu valoración de esfuerzo
+                    </p>
+                  </div>
+                </motion.button>
+
+                {/* Ficha 3: Contacto Coach */}
+                <motion.button
+                  onClick={() => setShowCoachContactModal(true)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-6 rounded-xl shadow-lg transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/80'
+                      : 'bg-white border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className={`p-4 rounded-full ${
+                      theme === 'dark' ? 'bg-blue-600/20' : 'bg-blue-100'
+                    }`}>
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                    </div>
+                    <h3 className={`text-lg font-bold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Contacto Coach
+                    </h3>
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+                    }`}>
+                      Contacta al coach a través de diferentes plataformas
+                    </p>
+                  </div>
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Botones de acción - Solo visible para el coach */}
           {isCoach && (
@@ -589,7 +705,11 @@ const HomePage = () => {
                   {t('dashboard.addFirstClient')}
                 </p>
               </motion.div>
-            ) : (() => {
+            ) : null}
+            </div>
+          ) : null}
+          {/* Contenido del Coach - Lista de Clientes */}
+          {isCoach && (() => {
               // Dividir clientes en nuevos y antiguos
               // Primero verificar si tienen categoría manual asignada
               const newClients = clients.filter(client => {
@@ -1266,100 +1386,6 @@ const HomePage = () => {
                 </>
               )
             })()}
-            </div>
-          ) : (
-            /* Vista del Cliente - Su Rutina/Entrenamiento */
-            <div className="mb-8">
-              <motion.h2 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 }}
-                className={`text-3xl font-bold mb-6 text-center ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}
-              >
-                {t('dashboard.myRoutine')}
-              </motion.h2>
-
-              {loading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                  {t('dashboard.loadingRoutine') && (
-                    <p className={`mt-4 ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
-                      {t('dashboard.loadingRoutine')}
-                    </p>
-                  )}
-                </div>
-              ) : clientData ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.7 }}
-                  className={`max-w-2xl mx-auto rounded-xl p-6 shadow-lg ${
-                    theme === 'dark' 
-                      ? 'bg-slate-800/80 border border-slate-700' 
-                      : 'bg-white border border-gray-200'
-                  }`}
-                >
-                  <div className={`mb-4 p-4 rounded-lg ${
-                    theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                  }`}>
-                    <p className={`text-sm font-semibold mb-2 ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                    }`}>
-                      {t('dashboard.plan')}
-                    </p>
-                    <p className={`text-lg font-bold mb-3 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {clientData.plan}
-                    </p>
-                    
-                    {/* Tiempo activo en el plan */}
-                    {clientData.createdAt && (
-                      <div className={`mt-3 p-3 rounded-lg ${
-                        theme === 'dark' ? 'bg-primary-500/20' : 'bg-primary-100'
-                      }`}>
-                        <p className={`text-sm font-semibold ${
-                          theme === 'dark' ? 'text-primary-300' : 'text-primary-700'
-                        }`}>
-                          ⏱️ Tiempo activo: {calculateTimeActive(clientData.createdAt)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <motion.button
-                    onClick={() => navigate(`/client/${clientData.id}/workouts`)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full bg-gradient-to-r from-primary-600 to-primary-800 text-white px-8 py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center justify-center gap-3 font-semibold text-lg"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {t('dashboard.viewWorkouts')}
-                  </motion.button>
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.7 }}
-                  className={`text-center py-12 rounded-xl ${
-                    theme === 'dark' ? 'bg-slate-800/50' : 'bg-white/50'
-                  }`}
-                >
-                  <p className={`text-xl ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                  }`}>
-                    {t('dashboard.noClientData')}
-                  </p>
-                </motion.div>
-              )}
-            </div>
-          )}
         </motion.div>
       </div>
 
@@ -1375,6 +1401,27 @@ const HomePage = () => {
         onClose={() => setShowImportModal(false)}
         onSuccess={handleClientAdded}
       />
+
+      {/* Modales para clientes */}
+      {clientData?.id && (
+        <>
+          <RMAndPRModal
+            isOpen={showRMAndPRModal}
+            onClose={() => setShowRMAndPRModal(false)}
+            clientId={clientData.id}
+            isCoach={false}
+          />
+          <LoadAndEffortModal
+            isOpen={showLoadAndEffortModal}
+            onClose={() => setShowLoadAndEffortModal(false)}
+            clientId={clientData.id}
+          />
+          <CoachContactModal
+            isOpen={showCoachContactModal}
+            onClose={() => setShowCoachContactModal(false)}
+          />
+        </>
+      )}
 
     </div>
   )

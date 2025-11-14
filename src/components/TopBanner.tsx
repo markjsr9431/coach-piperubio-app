@@ -335,22 +335,25 @@ const TopBanner = () => {
           : (isScrolled ? 'py-2 sm:py-6' : 'py-6 sm:py-6')
       } px-4 sm:px-6 lg:px-8`}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-        {/* Botón de back - Solo visible cuando no estamos en HomePage */}
-        {!isHomePage && (
-          <button
-            onClick={handleBack}
-            className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors mr-2 sm:mr-0"
-            aria-label="Volver al inicio"
-            title="Volver al inicio"
-          >
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </button>
-        )}
-        <div className={`${!isHomePage ? 'flex-1' : 'flex-1'} text-center transition-all duration-300 ${
-          !isHomePage && isScrolled ? 'hidden sm:block' : ''
+      <div className="max-w-7xl mx-auto grid grid-cols-3 items-center gap-2 sm:gap-4">
+        {/* Columna Izquierda: Botón de back */}
+        <div className="flex justify-start items-center">
+          {!isHomePage && (
+            <button
+              onClick={handleBack}
+              className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              aria-label="Volver al inicio"
+              title="Volver al inicio"
+            >
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {/* Columna Central: Título y fecha - Siempre centrado */}
+        <div className={`flex flex-col justify-center items-center transition-all duration-300 ${
+          !isHomePage && isScrolled ? 'hidden sm:flex' : 'flex'
         }`}>
           <motion.h2 
             ref={nameRef}
@@ -365,6 +368,21 @@ const TopBanner = () => {
           >
             {isViewingClient && clientName ? getDisplayName() : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
           </motion.h2>
+          {/* Eslogan del Coach - Solo visible para clientes en sus propias páginas */}
+          {!isCoach && (location.pathname === '/home' || (location.pathname.startsWith('/client/') && !isViewingClient)) && (
+            <motion.p 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.22, duration: 0.5 }}
+              className={`font-normal transition-all duration-300 text-center mb-1 ${
+                !isHomePage
+                  ? (isScrolled ? 'text-xs sm:text-xs' : 'text-xs sm:text-sm')
+                  : (isScrolled ? 'text-xs sm:text-sm' : 'text-xs sm:text-base')
+              } text-white/80`}
+            >
+              Profesional del Deporte y Especialista en Halterofilia
+            </motion.p>
+          )}
           {/* Fecha actual - Centrada */}
           <motion.p 
             initial={{ opacity: 0, x: -20 }}
@@ -438,7 +456,8 @@ const TopBanner = () => {
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        {/* Columna Derecha: Botones de control y avatar */}
+        <div className="flex justify-end items-center gap-3">
           {/* Botones de control */}
           <div className="flex gap-2">
             {/* Botón de cambio de tema */}

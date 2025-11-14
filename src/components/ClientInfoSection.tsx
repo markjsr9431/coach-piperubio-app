@@ -1500,7 +1500,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       {showSaveButtons && (
         <div className="flex gap-3 mt-6 pt-6 border-t border-slate-700/50">
           <button
-            onClick={() => navigate(`/client/${clientId}/workouts`)}
+            onClick={() => navigate('/home')}
             className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
               theme === 'dark'
                 ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'

@@ -44,7 +44,7 @@ const ClientProfilePage = () => {
           {/* Header */}
           <div className="mb-8">
             <button
-              onClick={() => navigate(`/client/${clientId}/workouts`)}
+              onClick={() => navigate('/home')}
               className={`mb-4 flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                 theme === 'dark'
                   ? 'text-slate-300 hover:text-white hover:bg-slate-700'

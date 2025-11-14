@@ -10,7 +10,6 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import ExerciseItem from '../components/ExerciseItem'
 import TimerModal from '../components/TimerModal'
 import TimerFloating from '../components/TimerFloating'
-import WorkoutComplete from '../components/WorkoutComplete'
 import ProgressBar from '../components/ProgressBar'
 import TopBanner from '../components/TopBanner'
 import DailyFeedback from '../components/DailyFeedback'
@@ -39,9 +38,6 @@ const WorkoutPage = () => {
   const [completedExercises, setCompletedExercises] = useState<Set<string>>(new Set())
   const [showTimer, setShowTimer] = useState(false)
   const [isTimerMinimized, setIsTimerMinimized] = useState(false)
-  const [showComplete, setShowComplete] = useState(false)
-  const [lastCompletedCount, setLastCompletedCount] = useState(0)
-  const hasShownCompleteRef = useRef(false)
   const [dayProgress, setDayProgress] = useState<{ progress: number; completedExercises: Set<string> } | null>(null)
   
   // Timer para tracking de tiempo de entrenamiento
@@ -242,39 +238,6 @@ const WorkoutPage = () => {
     return () => clearTimeout(timeoutId)
   }, [clientId, dayIndex, completedExercises.size, totalExercises, workout])
 
-  // Detectar cuando se completa el entrenamiento - Solo para clientes
-  useEffect(() => {
-    // Solo procesar si es un cliente (no el coach)
-    if (isCoach) {
-      return
-    }
-
-    const currentCompletedCount = completedExercises.size
-    
-    // Si todos los ejercicios están completados y no se ha mostrado el mensaje aún
-    if (isWorkoutComplete && totalExercises > 0 && !hasShownCompleteRef.current) {
-      // Verificar que acabamos de completar todos (el conteo anterior era menor)
-      if (currentCompletedCount === totalExercises && lastCompletedCount < totalExercises) {
-        // Marcar como mostrado inmediatamente para evitar múltiples disparos
-        hasShownCompleteRef.current = true
-        // Pequeño delay para mejor UX
-        setTimeout(() => {
-          setShowComplete(true)
-        }, 500)
-      }
-    }
-    
-    // Actualizar el último conteo
-    if (currentCompletedCount !== lastCompletedCount) {
-      setLastCompletedCount(currentCompletedCount)
-    }
-    
-    // Si el usuario desmarca un ejercicio (ya no está completo), ocultar la alerta si está visible
-    if (!isWorkoutComplete && showComplete) {
-      setShowComplete(false)
-      hasShownCompleteRef.current = false
-    }
-  }, [isWorkoutComplete, completedExercises.size, totalExercises, lastCompletedCount, showComplete, isCoach])
 
   const toggleSection = (sectionName: string) => {
     setExpandedSections(prev => {
@@ -551,13 +514,6 @@ const WorkoutPage = () => {
         </AnimatePresence>
       )}
 
-      {/* Animación de Entrenamiento Finalizado - Solo para clientes */}
-      {showComplete && !isCoach && (
-        <WorkoutComplete onClose={() => {
-          setShowComplete(false)
-          // No resetear el ref aquí para evitar que se muestre de nuevo si el entrenamiento sigue completo
-        }} />
-      )}
     </div>
   )
 }

@@ -6,8 +6,6 @@ import { TimerProvider } from './contexts/TimerContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { usePresence } from './hooks/usePresence'
 import HomePage from './pages/HomePage'
-import WorkoutPage from './pages/WorkoutPage'
-import ClientWorkoutPage from './pages/ClientWorkoutPage'
 import ClientProfilePage from './pages/ClientProfilePage'
 import ExercisesPage from './pages/ExercisesPage'
 import CreateWorkoutPage from './pages/CreateWorkoutPage'
@@ -51,35 +49,10 @@ function AppRoutes() {
         } 
       />
       <Route 
-        path="/client/:clientId/workouts" 
-        element={
-          <ProtectedRoute>
-            <ClientWorkoutPage />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/client/:clientId/workout/:day" 
-        element={
-          <ProtectedRoute>
-            <WorkoutPage />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
         path="/client/:clientId/profile" 
         element={
           <ProtectedRoute>
             <ClientProfilePage />
-          </ProtectedRoute>
-        } 
-      />
-      {/* Ruta legacy para compatibilidad */}
-      <Route 
-        path="/workout/:day" 
-        element={
-          <ProtectedRoute>
-            <WorkoutPage />
           </ProtectedRoute>
         } 
       />

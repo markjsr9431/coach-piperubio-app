@@ -164,7 +164,7 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
       setTimeout(() => {
         onSuccess()
         handleClose()
-      }, 1500)
+      }, 5000)
     } catch (error: any) {
       console.error('Error al actualizar perfil:', error)
       let errorMessage = 'Error al actualizar perfil. Por favor, intenta de nuevo.'

@@ -424,17 +424,29 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                       RM (Repetición Máxima)
                     </h3>
                     {isCurrentUser && (
-                      <button
-                        onClick={() => setShowRMForm(!showRMForm)}
-                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-sm"
-                      >
-                        {showRMForm ? 'Cancelar' : '+ Añadir RM'}
-                      </button>
+                      <>
+                        {hasRecordForToday(rms) ? (
+                          <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+                            theme === 'dark'
+                              ? 'bg-green-600/20 text-green-400 border border-green-500/50'
+                              : 'bg-green-50 text-green-700 border border-green-200'
+                          }`}>
+                            ✓ Registrado hoy
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowRMForm(!showRMForm)}
+                            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-sm"
+                          >
+                            {showRMForm ? 'Cancelar' : '+ Añadir RM'}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
 
                   {/* Formulario RM */}
-                  {showRMForm && isCurrentUser && (
+                  {showRMForm && isCurrentUser && !hasRecordForToday(rms) && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
@@ -466,7 +478,7 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                         />
                         <input
                           type="text"
-                          placeholder="Implemento (ej: Barra olímpica)"
+                          placeholder="Implemento (ej: Barra olímpica) - Opcional"
                           value={rmForm.implement}
                           onChange={(e) => setRmForm(prev => ({ ...prev, implement: e.target.value }))}
                           className={`w-full px-4 py-2 rounded-lg border ${
@@ -477,13 +489,26 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                         />
                         <button
                           onClick={handleAddRM}
-                          disabled={saving || (!isCoach && hasRecordForToday(rms))}
+                          disabled={saving}
                           className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {saving ? 'Guardando...' : (!isCoach && hasRecordForToday(rms) ? 'Ya registraste un RM hoy' : 'Guardar RM')}
+                          {saving ? 'Guardando...' : 'Guardar RM'}
                         </button>
                       </div>
                     </motion.div>
+                  )}
+                  
+                  {/* Mensaje si ya se registró hoy */}
+                  {isCurrentUser && hasRecordForToday(rms) && (
+                    <div className={`mb-4 p-4 rounded-lg ${
+                      theme === 'dark' ? 'bg-green-600/10 border border-green-500/30' : 'bg-green-50 border border-green-200'
+                    }`}>
+                      <p className={`text-sm font-semibold ${
+                        theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                      }`}>
+                        ✓ Ya has registrado un RM hoy. Solo puedes registrar uno por día.
+                      </p>
+                    </div>
                   )}
 
                   {/* Lista de RMs */}
@@ -528,17 +553,29 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                       PR (Récord Personal)
                     </h3>
                     {isCurrentUser && (
-                      <button
-                        onClick={() => setShowPRForm(!showPRForm)}
-                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-sm"
-                      >
-                        {showPRForm ? 'Cancelar' : '+ Añadir PR'}
-                      </button>
+                      <>
+                        {hasRecordForToday(prs) ? (
+                          <div className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+                            theme === 'dark'
+                              ? 'bg-green-600/20 text-green-400 border border-green-500/50'
+                              : 'bg-green-50 text-green-700 border border-green-200'
+                          }`}>
+                            ✓ Registrado hoy
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowPRForm(!showPRForm)}
+                            className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-sm"
+                          >
+                            {showPRForm ? 'Cancelar' : '+ Añadir PR'}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
 
                   {/* Formulario PR */}
-                  {showPRForm && isCurrentUser && (
+                  {showPRForm && isCurrentUser && !hasRecordForToday(prs) && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
@@ -570,7 +607,7 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                         />
                         <input
                           type="text"
-                          placeholder="Implemento (ej: Peso corporal)"
+                          placeholder="Implemento (ej: Peso corporal) - Opcional"
                           value={prForm.implement}
                           onChange={(e) => setPrForm(prev => ({ ...prev, implement: e.target.value }))}
                           className={`w-full px-4 py-2 rounded-lg border ${
@@ -581,13 +618,26 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                         />
                         <button
                           onClick={handleAddPR}
-                          disabled={saving || (!isCoach && hasRecordForToday(prs))}
+                          disabled={saving}
                           className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {saving ? 'Guardando...' : (!isCoach && hasRecordForToday(prs) ? 'Ya registraste un PR hoy' : 'Guardar PR')}
+                          {saving ? 'Guardando...' : 'Guardar PR'}
                         </button>
                       </div>
                     </motion.div>
+                  )}
+                  
+                  {/* Mensaje si ya se registró hoy */}
+                  {isCurrentUser && hasRecordForToday(prs) && (
+                    <div className={`mb-4 p-4 rounded-lg ${
+                      theme === 'dark' ? 'bg-green-600/10 border border-green-500/30' : 'bg-green-50 border border-green-200'
+                    }`}>
+                      <p className={`text-sm font-semibold ${
+                        theme === 'dark' ? 'text-green-400' : 'text-green-700'
+                      }`}>
+                        ✓ Ya has registrado un PR hoy. Solo puedes registrar uno por día.
+                      </p>
+                    </div>
                   )}
 
                   {/* Lista de PRs */}

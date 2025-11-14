@@ -114,7 +114,7 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
       setTimeout(() => {
         onSuccess()
         handleClose()
-      }, 2000)
+      }, 5000)
     } catch (error: any) {
       console.error('Error al agregar cliente:', error)
       

@@ -188,7 +188,7 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
         setTimeout(() => {
           onSuccess()
           handleClose()
-        }, 2000)
+        }, 5000)
       } else {
         setError(`No se pudo importar ningún cliente. Errores: ${errors.join(', ')}`)
       }
