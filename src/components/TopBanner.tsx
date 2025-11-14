@@ -331,67 +331,67 @@ const TopBanner = () => {
         theme === 'dark' ? 'bg-black/80' : 'bg-gray-800/80'
       } backdrop-blur-sm text-white shadow-lg transition-all duration-300 ${
         !isHomePage 
-          ? (isScrolled ? 'py-2 sm:py-4' : 'py-3 sm:py-4')
-          : (isScrolled ? 'py-2 sm:py-6' : 'py-6 sm:py-6')
+          ? (isScrolled ? 'py-1.5 sm:py-2' : 'py-2 sm:py-3')
+          : (isScrolled ? 'py-1.5 sm:py-2' : 'py-2 sm:py-3')
       } px-4 sm:px-6 lg:px-8`}
     >
-      <div className="max-w-7xl mx-auto grid grid-cols-3 items-center gap-2 sm:gap-4">
-        {/* Columna Izquierda: Botón de back */}
-        <div className="flex justify-start items-center">
+      <div className="max-w-7xl mx-auto grid grid-cols-3 items-start gap-2 sm:gap-3">
+        {/* Columna Izquierda: Botón de back + Título + Eslogan */}
+        <div className="flex items-start gap-2 sm:gap-3">
           {!isHomePage && (
             <button
               onClick={handleBack}
-              className="flex-shrink-0 p-2 sm:p-2.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-              aria-label="Volver al inicio"
-              title="Volver al inicio"
+              className="flex-shrink-0 p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors mt-0.5"
+              aria-label="Volver"
+              title="Volver"
             >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </button>
           )}
+          <div className="flex flex-col">
+            <motion.h2 
+              ref={nameRef}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+              className={`font-bold uppercase transition-all duration-300 leading-tight ${
+                !isHomePage
+                  ? (isScrolled ? 'text-xs sm:text-base' : 'text-sm sm:text-lg')
+                  : (isScrolled ? 'text-sm sm:text-lg' : 'text-base sm:text-xl')
+              }`}
+            >
+              {isViewingClient && clientName ? getDisplayName() : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
+            </motion.h2>
+            {/* Eslogan abreviado - Solo visible para clientes */}
+            {!isCoach && (location.pathname === '/home' || (location.pathname.startsWith('/client/') && !isViewingClient)) && (
+              <motion.p 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.22, duration: 0.5 }}
+                className={`font-normal transition-all duration-300 leading-tight mt-0.5 ${
+                  isScrolled ? 'text-[10px] sm:text-xs' : 'text-[10px] sm:text-xs'
+                } text-white/70`}
+              >
+                Prof. Deporte | Halterofilia
+              </motion.p>
+            )}
+          </div>
         </div>
-        {/* Columna Central: Título y fecha - Siempre centrado */}
+        
+        {/* Columna Central: Fecha - Centrada */}
         <div className={`flex flex-col justify-center items-center transition-all duration-300 ${
           !isHomePage && isScrolled ? 'hidden sm:flex' : 'flex'
         }`}>
-          <motion.h2 
-            ref={nameRef}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className={`font-bold uppercase mb-2 transition-all duration-300 ${
-              !isHomePage
-                ? (isScrolled ? 'text-sm sm:text-xl' : 'text-lg sm:text-2xl')
-                : (isScrolled ? 'text-base sm:text-2xl' : 'text-2xl sm:text-3xl')
-            }`}
-          >
-            {isViewingClient && clientName ? getDisplayName() : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
-          </motion.h2>
-          {/* Eslogan del Coach - Solo visible para clientes en sus propias páginas */}
-          {!isCoach && (location.pathname === '/home' || (location.pathname.startsWith('/client/') && !isViewingClient)) && (
-            <motion.p 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.22, duration: 0.5 }}
-              className={`font-normal transition-all duration-300 text-center mb-1 ${
-                !isHomePage
-                  ? (isScrolled ? 'text-xs sm:text-xs' : 'text-xs sm:text-sm')
-                  : (isScrolled ? 'text-xs sm:text-sm' : 'text-xs sm:text-base')
-              } text-white/80`}
-            >
-              Profesional del Deporte y Especialista en Halterofilia
-            </motion.p>
-          )}
-          {/* Fecha actual - Centrada */}
           <motion.p 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.25, duration: 0.5 }}
             className={`font-semibold transition-all duration-300 text-center ${
               !isHomePage
-                ? (isScrolled ? 'text-xs sm:text-sm' : 'text-xs sm:text-base')
-                : (isScrolled ? 'text-xs sm:text-base' : 'text-sm sm:text-lg')
+                ? (isScrolled ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm')
+                : (isScrolled ? 'text-xs sm:text-sm' : 'text-xs sm:text-base')
             } text-white/90`}
           >
             {(() => {
@@ -403,7 +403,6 @@ const TopBanner = () => {
               const month = months[today.getMonth()]
               const year = today.getFullYear()
               
-              // En móviles mostrar formato corto, en desktop mostrar completo
               return (
                 <>
                   <span className="sm:hidden">{dayName} {day} {month}</span>
@@ -418,10 +417,10 @@ const TopBanner = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.3, duration: 0.5 }}
-              className={`font-semibold uppercase transition-all duration-300 ${
+              className={`font-semibold uppercase transition-all duration-300 mt-0.5 ${
                 !isHomePage
-                  ? (isScrolled ? 'text-xs sm:text-sm hidden sm:block' : 'text-xs sm:text-base')
-                  : (isScrolled ? 'text-xs sm:text-base hidden sm:block' : 'text-sm sm:text-lg')
+                  ? (isScrolled ? 'text-[10px] sm:text-xs hidden sm:block' : 'text-xs sm:text-sm')
+                  : (isScrolled ? 'text-xs sm:text-sm hidden sm:block' : 'text-xs sm:text-base')
               } text-primary-300`}
             >
               Gestión de Cliente
@@ -433,10 +432,10 @@ const TopBanner = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3, duration: 0.5 }}
-                className={`font-semibold uppercase mb-1 transition-all duration-300 ${
+                className={`font-semibold uppercase transition-all duration-300 mt-0.5 ${
                   !isHomePage
-                    ? (isScrolled ? 'text-xs sm:text-base hidden sm:block' : 'text-sm sm:text-lg')
-                    : (isScrolled ? 'text-sm sm:text-lg hidden sm:block' : 'text-lg sm:text-xl')
+                    ? (isScrolled ? 'text-[10px] sm:text-xs hidden sm:block' : 'text-xs sm:text-sm')
+                    : (isScrolled ? 'text-xs sm:text-sm hidden sm:block' : 'text-sm sm:text-base')
                 }`}
               >
                 {t('plan.level')}
@@ -447,8 +446,8 @@ const TopBanner = () => {
                 transition={{ delay: 0.4, duration: 0.5 }}
                 className={`font-bold uppercase transition-all duration-300 ${
                   !isHomePage
-                    ? (isScrolled ? 'text-xs sm:text-base hidden sm:block' : 'text-sm sm:text-lg')
-                    : (isScrolled ? 'text-base sm:text-xl hidden sm:block' : 'text-xl sm:text-2xl')
+                    ? (isScrolled ? 'text-xs sm:text-sm hidden sm:block' : 'text-sm sm:text-base')
+                    : (isScrolled ? 'text-sm sm:text-base hidden sm:block' : 'text-base sm:text-lg')
                 }`}
               >
                 {t('plan.client')}
@@ -456,23 +455,63 @@ const TopBanner = () => {
             </>
           )}
         </div>
-        {/* Columna Derecha: Botones de control y avatar */}
-        <div className="flex justify-end items-center gap-3">
-          {/* Botones de control */}
-          <div className="flex gap-2">
+        
+        {/* Columna Derecha: Logo + Botones de control (vertical) + Avatar */}
+        <div className="flex justify-end items-start gap-2 sm:gap-3">
+          {/* Logo */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, rotate: -180 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
+            className="flex-shrink-0"
+          >
+            {user ? (
+              <motion.button
+                onClick={() => navigate('/home')}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="cursor-pointer focus:outline-none"
+                aria-label="Ir al inicio"
+                title="Ir al inicio"
+              >
+                <img 
+                  src="/favicon.png" 
+                  alt="Coach Piperubio Logo" 
+                  className={`object-contain transition-all duration-300 ${
+                    !isHomePage
+                      ? (isScrolled ? 'w-8 h-8 sm:w-12 sm:h-12' : 'w-10 h-10 sm:w-16 sm:h-16')
+                      : (isScrolled ? 'w-10 h-10 sm:w-16 sm:h-16' : 'w-14 h-14 sm:w-20 sm:h-20')
+                  }`}
+                />
+              </motion.button>
+            ) : (
+              <img 
+                src="/favicon.png" 
+                alt="Coach Piperubio Logo" 
+                className={`object-contain transition-all duration-300 ${
+                  !isHomePage
+                    ? (isScrolled ? 'w-8 h-8 sm:w-12 sm:h-12' : 'w-10 h-10 sm:w-16 sm:h-16')
+                    : (isScrolled ? 'w-10 h-10 sm:w-16 sm:h-16' : 'w-14 h-14 sm:w-20 sm:h-20')
+                }`}
+              />
+            )}
+          </motion.div>
+          
+          {/* Botones de control - Verticalmente debajo del logo */}
+          <div className="flex flex-col gap-1 sm:gap-1.5 mt-0.5">
             {/* Botón de cambio de tema */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               aria-label={t('theme.toggle')}
               title={t('theme.toggle')}
             >
               {theme === 'dark' ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                 </svg>
               )}
@@ -480,7 +519,7 @@ const TopBanner = () => {
             {/* Botón de cambio de idioma */}
             <button
               onClick={toggleLanguage}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors font-semibold text-sm"
+              className="p-1.5 sm:p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors font-semibold text-[10px] sm:text-xs"
               aria-label={t('language.toggle')}
               title={t('language.toggle')}
             >
@@ -495,7 +534,7 @@ const TopBanner = () => {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className={`w-10 h-10 rounded-full text-white font-bold flex items-center justify-center shadow-lg hover:shadow-xl transition-all overflow-hidden ${
+                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full text-white font-bold flex items-center justify-center shadow-lg hover:shadow-xl transition-all overflow-hidden ${
                   (clientProfilePhoto || user.photoURL) 
                     ? '' 
                     : 'bg-gradient-to-br from-primary-600 to-primary-800'
@@ -625,44 +664,6 @@ const TopBanner = () => {
               onClose={() => setShowColorSelector(false)}
             />
           )}
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5, rotate: -180 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
-            className="flex-shrink-0"
-          >
-            {user ? (
-              <motion.button
-                onClick={() => navigate('/home')}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="cursor-pointer focus:outline-none"
-                aria-label="Ir al inicio"
-                title="Ir al inicio"
-              >
-                <img 
-                  src="/favicon.png" 
-                  alt="Coach Piperubio Logo" 
-                  className={`object-contain transition-all duration-300 ${
-                    !isHomePage
-                      ? (isScrolled ? 'w-10 h-10 sm:w-16 sm:h-16' : 'w-14 h-14 sm:w-20 sm:h-20')
-                      : (isScrolled ? 'w-12 h-12 sm:w-20 sm:h-20' : 'w-20 h-20 sm:w-24 sm:h-24')
-                  }`}
-                />
-              </motion.button>
-            ) : (
-              <img 
-                src="/favicon.png" 
-                alt="Coach Piperubio Logo" 
-                className={`object-contain transition-all duration-300 ${
-                  !isHomePage
-                    ? (isScrolled ? 'w-10 h-10 sm:w-16 sm:h-16' : 'w-14 h-14 sm:w-20 sm:h-20')
-                    : (isScrolled ? 'w-12 h-12 sm:w-20 sm:h-20' : 'w-20 h-20 sm:w-24 sm:h-24')
-                }`}
-              />
-            )}
-          </motion.div>
         </div>
       </div>
     </motion.div>

@@ -10,11 +10,16 @@ interface LoadAndEffortModalProps {
   clientId: string
 }
 
+interface ImplementEntry {
+  id: string
+  implement: string
+  load: string
+}
+
 interface DailyRecord {
   id: string
   date: number
-  implement: string
-  load: string
+  implements: Array<{ implement: string, load: string }>
   rpe: number
 }
 
@@ -23,12 +28,8 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
   const [saving, setSaving] = useState(false)
   const [hasRecordToday, setHasRecordToday] = useState(false)
   const [loading, setLoading] = useState(true)
-
-  const [formData, setFormData] = useState({
-    implement: '',
-    load: '',
-    rpe: 5
-  })
+  const [implements, setImplements] = useState<ImplementEntry[]>([])
+  const [rpe, setRpe] = useState(5)
 
   const implementOptions = [
     'Mancuerna',
@@ -80,13 +81,27 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
     checkTodayRecord()
   }, [isOpen, clientId])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+  const handleAddImplement = () => {
+    const newImplement: ImplementEntry = {
+      id: Date.now().toString(),
+      implement: '',
+      load: ''
+    }
+    setImplements(prev => [...prev, newImplement])
+  }
+
+  const handleRemoveImplement = (id: string) => {
+    setImplements(prev => prev.filter(imp => imp.id !== id))
+  }
+
+  const handleImplementChange = (id: string, field: 'implement' | 'load', value: string) => {
+    setImplements(prev => prev.map(imp => 
+      imp.id === id ? { ...imp, [field]: value } : imp
+    ))
   }
 
   const handleRPEChange = (value: number) => {
-    setFormData(prev => ({ ...prev, rpe: value }))
+    setRpe(value)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,8 +111,10 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
       return
     }
 
-    if (!formData.implement || !formData.load) {
-      alert('Por favor completa todos los campos requeridos')
+    // Validar que al menos un implemento tenga ambos campos completos
+    const validImplements = implements.filter(imp => imp.implement && imp.load)
+    if (validImplements.length === 0) {
+      alert('Por favor agrega al menos un implemento con su carga')
       return
     }
 
@@ -117,9 +134,11 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
       const newRecord: DailyRecord = {
         id: Date.now().toString(),
         date: todayTimestamp,
-        implement: formData.implement,
-        load: formData.load,
-        rpe: formData.rpe
+        implements: validImplements.map(imp => ({
+          implement: imp.implement,
+          load: imp.load
+        })),
+        rpe: rpe
       }
 
       const updatedRecords = [...existingRecords, newRecord]
@@ -130,11 +149,8 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
       }, { merge: true })
 
       // Resetear formulario
-      setFormData({
-        implement: '',
-        load: '',
-        rpe: 5
-      })
+      setImplements([])
+      setRpe(5)
       setHasRecordToday(true)
       alert('Registro guardado exitosamente')
     } catch (error) {
@@ -218,61 +234,112 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                 <div className={`rounded-xl p-6 ${
                   theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
                 }`}>
-                  <h3 className={`text-lg font-bold mb-4 ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    Registro de Carga
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className={`text-lg font-bold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Registro de Carga
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleAddImplement}
+                      className={`px-3 py-1.5 rounded-lg font-semibold text-sm transition-colors ${
+                        theme === 'dark'
+                          ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                          : 'bg-primary-600 hover:bg-primary-700 text-white'
+                      }`}
+                    >
+                      + Agregar Implemento
+                    </button>
+                  </div>
                   
                   <div className="space-y-4">
-                    {/* Tipo de Implemento */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                    {implements.length === 0 ? (
+                      <p className={`text-sm text-center py-4 ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
                       }`}>
-                        Tipo de Implemento <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        name="implement"
-                        value={formData.implement}
-                        onChange={handleInputChange}
-                        required
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-800 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                            : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                        }`}
-                      >
-                        <option value="">Selecciona un implemento</option>
-                        {implementOptions.map(option => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    </div>
+                        Haz clic en "+ Agregar Implemento" para comenzar
+                      </p>
+                    ) : (
+                      implements.map((imp, index) => (
+                        <div key={imp.id} className={`p-4 rounded-lg border ${
+                          theme === 'dark' ? 'bg-slate-800/50 border-slate-600' : 'bg-white border-gray-300'
+                        }`}>
+                          <div className="flex items-start justify-between mb-3">
+                            <span className={`text-sm font-semibold ${
+                              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                            }`}>
+                              Implemento {index + 1}
+                            </span>
+                            {implements.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImplement(imp.id)}
+                                className={`p-1 rounded transition-colors ${
+                                  theme === 'dark'
+                                    ? 'hover:bg-slate-700 text-red-400'
+                                    : 'hover:bg-gray-100 text-red-600'
+                                }`}
+                                aria-label="Eliminar implemento"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-3">
+                            {/* Tipo de Implemento */}
+                            <div>
+                              <label className={`block text-xs font-semibold mb-1.5 ${
+                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                              }`}>
+                                Tipo de Implemento <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                value={imp.implement}
+                                onChange={(e) => handleImplementChange(imp.id, 'implement', e.target.value)}
+                                required
+                                className={`w-full px-3 py-2 rounded-lg border transition-colors text-sm ${
+                                  theme === 'dark'
+                                    ? 'bg-slate-800 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                                    : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                                }`}
+                              >
+                                <option value="">Selecciona un implemento</option>
+                                {implementOptions.map(option => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
+                            </div>
 
-                    {/* Carga en Kg */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        Carga (Kg) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        name="load"
-                        value={formData.load}
-                        onChange={handleInputChange}
-                        required
-                        min="0"
-                        step="0.1"
-                        placeholder="Ej: 50.5"
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                        }`}
-                      />
-                    </div>
+                            {/* Carga en Kg */}
+                            <div>
+                              <label className={`block text-xs font-semibold mb-1.5 ${
+                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                              }`}>
+                                Carga (Kg) <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                value={imp.load}
+                                onChange={(e) => handleImplementChange(imp.id, 'load', e.target.value)}
+                                required
+                                min="0"
+                                step="0.1"
+                                placeholder="Ej: 50.5"
+                                className={`w-full px-3 py-2 rounded-lg border transition-colors text-sm ${
+                                  theme === 'dark'
+                                    ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -301,7 +368,7 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                           type="button"
                           onClick={() => handleRPEChange(value)}
                           className={`py-3 px-2 rounded-lg font-semibold transition-all ${
-                            formData.rpe === value
+                            rpe === value
                               ? 'bg-primary-600 text-white scale-110 shadow-lg'
                               : theme === 'dark'
                               ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
@@ -325,15 +392,15 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                       <p className={`text-3xl font-bold ${
                         theme === 'dark' ? 'text-white' : 'text-gray-900'
                       }`}>
-                        {formData.rpe} / 10
+                        {rpe} / 10
                       </p>
                       <p className={`text-xs mt-1 ${
                         theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
                       }`}>
-                        {formData.rpe <= 3 ? 'Muy fácil' :
-                         formData.rpe <= 5 ? 'Fácil' :
-                         formData.rpe <= 7 ? 'Moderado' :
-                         formData.rpe <= 9 ? 'Difícil' : 'Esfuerzo máximo'}
+                        {rpe <= 3 ? 'Muy fácil' :
+                         rpe <= 5 ? 'Fácil' :
+                         rpe <= 7 ? 'Moderado' :
+                         rpe <= 9 ? 'Difícil' : 'Esfuerzo máximo'}
                       </p>
                     </div>
                   </div>
@@ -354,9 +421,9 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                   </button>
                   <button
                     type="submit"
-                    disabled={saving || !formData.implement || !formData.load}
+                    disabled={saving || implements.filter(imp => imp.implement && imp.load).length === 0}
                     className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-colors ${
-                      saving || !formData.implement || !formData.load
+                      saving || implements.filter(imp => imp.implement && imp.load).length === 0
                         ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                         : 'bg-primary-600 text-white hover:bg-primary-700'
                     }`}
