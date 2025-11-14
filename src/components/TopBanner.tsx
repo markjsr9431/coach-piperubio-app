@@ -550,22 +550,24 @@ const TopBanner = () => {
                           </svg>
                           {t('userMenu.updateProfile')}
                         </button>
-                        <button
-                          onClick={() => {
-                            setShowUserMenu(false)
-                            setShowColorSelector(true)
-                          }}
-                          className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                            theme === 'dark'
-                              ? 'hover:bg-slate-700 text-slate-300'
-                              : 'hover:bg-gray-100 text-gray-700'
-                          } flex items-center gap-3`}
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                          </svg>
-                          Personalizar Tema
-                        </button>
+                        {isCoach && (
+                          <button
+                            onClick={() => {
+                              setShowUserMenu(false)
+                              setShowColorSelector(true)
+                            }}
+                            className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
+                              theme === 'dark'
+                                ? 'hover:bg-slate-700 text-slate-300'
+                                : 'hover:bg-gray-100 text-gray-700'
+                            } flex items-center gap-3`}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                            </svg>
+                            Personalizar Tema
+                          </button>
+                        )}
                         <button
                           onClick={handleLogout}
                           className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
@@ -597,11 +599,13 @@ const TopBanner = () => {
             }}
           />
 
-          {/* Selector de colores - Para todos los usuarios */}
-          <ColorThemeSelector
-            isOpen={showColorSelector}
-            onClose={() => setShowColorSelector(false)}
-          />
+          {/* Selector de colores - Solo para el coach */}
+          {isCoach && (
+            <ColorThemeSelector
+              isOpen={showColorSelector}
+              onClose={() => setShowColorSelector(false)}
+            />
+          )}
 
           <motion.div
             initial={{ opacity: 0, scale: 0.5, rotate: -180 }}

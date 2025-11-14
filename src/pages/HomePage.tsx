@@ -64,9 +64,22 @@ const HomePage = () => {
   const [isAllClientsCollapsed, setIsAllClientsCollapsed] = useState(false)
   const [sortBy, setSortBy] = useState<'name' | 'subscription' | 'payment' | 'none'>('none')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [searchTerm, setSearchTerm] = useState('')
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
+  
+  // Función para filtrar clientes por nombre o apellido
+  const filterClients = (clientsToFilter: Client[]): Client[] => {
+    if (!searchTerm.trim()) {
+      return clientsToFilter
+    }
+    const searchLower = searchTerm.toLowerCase().trim()
+    return clientsToFilter.filter(client => {
+      const fullName = client.name.toLowerCase()
+      return fullName.includes(searchLower)
+    })
+  }
 
   // Cargar datos según el tipo de usuario
   useEffect(() => {
@@ -480,6 +493,28 @@ const HomePage = () => {
           {isCoach ? (
             /* Vista del Coach - Lista de Clientes */
             <div className="mb-8">
+              {/* Campo de Búsqueda */}
+              <div className="mb-6">
+                <div className="relative max-w-md">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar por nombre o apellido..."
+                    className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-colors ${
+                      theme === 'dark'
+                        ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                    }`}
+                  />
+                </div>
+              </div>
+              
               <div className="flex items-center justify-between mb-6">
                 <motion.h2 
                   initial={{ opacity: 0, x: -20 }}
@@ -632,6 +667,11 @@ const HomePage = () => {
               }
               
               const allClients = sortedClients
+              
+              // Aplicar filtro de búsqueda
+              const filteredNewClients = filterClients(newClients)
+              const filteredOldClients = filterClients(oldClients)
+              const filteredAllClients = filterClients(allClients)
 
               return (
                 <>
@@ -652,7 +692,7 @@ const HomePage = () => {
                         >
                           <div className="text-center">
                             <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                              {newClients.length}
+                              {searchTerm ? filteredNewClients.length : newClients.length}
                             </div>
                             <div className="text-white font-semibold text-lg sm:text-xl mb-2">
                               Clientes Nuevos
@@ -675,7 +715,7 @@ const HomePage = () => {
                         >
                           <div className="text-center">
                             <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                              {oldClients.length}
+                              {searchTerm ? filteredOldClients.length : oldClients.length}
                             </div>
                             <div className="text-white font-semibold text-lg sm:text-xl mb-2">
                               Clientes Antiguos
@@ -732,7 +772,7 @@ const HomePage = () => {
                       </div>
 
                       {/* Listado de clientes según categoría activa */}
-                      {activeCategory === 'new' && newClients.length > 0 && (
+                      {activeCategory === 'new' && filteredNewClients.length > 0 && (
                         <div className="mb-8">
                           <motion.h3 
                             initial={{ opacity: 0, x: -20 }}
@@ -741,14 +781,14 @@ const HomePage = () => {
                               theme === 'dark' ? 'text-white' : 'text-gray-900'
                             }`}
                           >
-                            Clientes Nuevos ({newClients.length})
+                            Clientes Nuevos ({filteredNewClients.length})
                           </motion.h3>
                       <div className={`${
                         viewMode === 'grid' 
                           ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
                           : 'space-y-3'
                       }`}>
-                        {newClients.map((client, index) => (
+                        {filteredNewClients.map((client, index) => (
                           <motion.div
                             key={client.id}
                             variants={cardVariants}
@@ -879,7 +919,7 @@ const HomePage = () => {
                   )}
 
                       {/* Listado de clientes antiguos */}
-                      {activeCategory === 'old' && oldClients.length > 0 && (
+                      {activeCategory === 'old' && filteredOldClients.length > 0 && (
                         <div className="mb-8">
                           <motion.h3 
                             initial={{ opacity: 0, x: -20 }}
@@ -888,20 +928,20 @@ const HomePage = () => {
                               theme === 'dark' ? 'text-white' : 'text-gray-900'
                             }`}
                           >
-                            Clientes Antiguos ({oldClients.length})
+                            Clientes Antiguos ({filteredOldClients.length})
                           </motion.h3>
                       <div className={`${
                         viewMode === 'grid' 
                           ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
                           : 'space-y-3'
                       }`}>
-                        {oldClients.map((client, index) => (
+                        {filteredOldClients.map((client, index) => (
                           <motion.div
                             key={client.id}
                             variants={cardVariants}
                             initial="hidden"
                             animate="visible"
-                            transition={{ delay: 0.8 + (newClients.length * 0.1) + index * 0.1 }}
+                            transition={{ delay: 0.8 + (filteredNewClients.length * 0.1) + index * 0.1 }}
                             whileHover={{ scale: 1.02, y: -5 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => handleClientClick(client.id)}
@@ -1035,7 +1075,7 @@ const HomePage = () => {
                             theme === 'dark' ? 'text-white' : 'text-gray-900'
                           }`}
                         >
-                          Todos los Clientes ({allClients.length})
+                          Todos los Clientes ({filteredAllClients.length})
                         </motion.h3>
                         
                         <div className="flex items-center gap-3 flex-wrap">
@@ -1104,7 +1144,7 @@ const HomePage = () => {
                           ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
                           : 'space-y-3'
                       }`}>
-                        {allClients.map((client, index) => (
+                        {filteredAllClients.map((client, index) => (
                         <motion.div
                           key={client.id}
                           variants={cardVariants}
