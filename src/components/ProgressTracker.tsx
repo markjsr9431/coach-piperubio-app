@@ -44,7 +44,9 @@ const ProgressTracker = ({
       theme === 'dark' ? 'bg-slate-800/50' : 'bg-gray-100'
     }`}>
       {showDetails && (
-        <div className="mb-4">
+        <div className={`sticky top-0 z-10 mb-4 py-2 ${
+          theme === 'dark' ? 'bg-slate-800/95 backdrop-blur-sm' : 'bg-gray-100/95 backdrop-blur-sm'
+        }`}>
           <h3 className={`text-lg font-bold mb-3 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>

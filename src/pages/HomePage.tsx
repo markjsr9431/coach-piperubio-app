@@ -757,7 +757,8 @@ const HomePage = () => {
                             transition={{ delay: 0.8 + index * 0.1 }}
                             whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
                             whileTap={{ scale: 0.98 }}
-                            className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative ${
+                            onClick={() => handleClientClick(client.id)}
+                            className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative cursor-pointer ${
                               viewMode === 'list' 
                                 ? 'p-3' 
                                 : 'p-6'
@@ -767,12 +768,9 @@ const HomePage = () => {
                                 : 'bg-white border border-gray-200'
                             }`}
                           >
-                            {/* Barra de Progreso - Clickeable */}
+                            {/* Barra de Progreso */}
                             {client.progress && (
-                              <div 
-                                className="mb-2 cursor-pointer" 
-                                onClick={() => handleClientClick(client.id)}
-                              >
+                              <div className="mb-2">
                                 <ProgressTracker
                                   dailyProgress={0}
                                   monthlyProgress={client.progress.monthlyProgress}
@@ -800,10 +798,16 @@ const HomePage = () => {
                                 <div className="flex items-center gap-2">
                                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                     isClientOnline(client)
-                                      ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                      ? theme === 'dark'
+                                        ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                        : 'bg-green-100 text-green-700 border border-green-500'
                                       : client.status === 'active'
-                                      ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                      : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                      ? theme === 'dark'
+                                        ? 'bg-slate-600/30 text-slate-300 border border-slate-500/70'
+                                        : 'bg-gray-200 text-gray-700 border border-gray-400'
+                                      : theme === 'dark'
+                                        ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                        : 'bg-gray-200 text-gray-600 border border-gray-400'
                                   }`}>
                                     {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
                                   </span>
@@ -900,18 +904,16 @@ const HomePage = () => {
                             transition={{ delay: 0.8 + (newClients.length * 0.1) + index * 0.1 }}
                             whileHover={{ scale: 1.02, y: -5 }}
                             whileTap={{ scale: 0.98 }}
-                            className={`rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between min-h-[280px] sm:min-h-[320px] ${
+                            onClick={() => handleClientClick(client.id)}
+                            className={`rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between min-h-[280px] sm:min-h-[320px] cursor-pointer ${
                               theme === 'dark' 
                                 ? 'bg-slate-800/80 border border-slate-700' 
                                 : 'bg-white border border-gray-200'
                             }`}
                           >
-                            {/* Barra de Progreso - Clickeable */}
+                            {/* Barra de Progreso */}
                             {client.progress && (
-                              <div 
-                                className="mb-2 cursor-pointer" 
-                                onClick={() => handleClientClick(client.id)}
-                              >
+                              <div className="mb-2">
                                 <ProgressTracker
                                   dailyProgress={0}
                                   monthlyProgress={client.progress.monthlyProgress}
@@ -938,9 +940,17 @@ const HomePage = () => {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                    client.status === 'active'
-                                      ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                      : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                    isClientOnline(client)
+                                      ? theme === 'dark'
+                                        ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                        : 'bg-green-100 text-green-700 border border-green-500'
+                                      : client.status === 'active'
+                                      ? theme === 'dark'
+                                        ? 'bg-slate-600/30 text-slate-300 border border-slate-500/70'
+                                        : 'bg-gray-200 text-gray-700 border border-gray-400'
+                                      : theme === 'dark'
+                                        ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                        : 'bg-gray-200 text-gray-600 border border-gray-400'
                                   }`}>
                                     {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
                                   </span>
@@ -1103,7 +1113,8 @@ const HomePage = () => {
                           transition={{ delay: 0.9 + index * 0.05 }}
                           whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
                           whileTap={{ scale: 0.98 }}
-                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between ${
+                          onClick={() => handleClientClick(client.id)}
+                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between cursor-pointer ${
                             viewMode === 'list' 
                               ? 'p-3 min-h-[200px]' 
                               : 'p-4 sm:p-6 min-h-[280px] sm:min-h-[320px]'
@@ -1113,12 +1124,9 @@ const HomePage = () => {
                               : 'bg-white border border-gray-200'
                           }`}
                         >
-                          {/* Barra de Progreso - Clickeable */}
+                          {/* Barra de Progreso */}
                           {client.progress && (
-                            <div 
-                              className="mb-2 cursor-pointer" 
-                              onClick={() => handleClientClick(client.id)}
-                            >
+                            <div className="mb-2">
                               <ProgressTracker
                                 dailyProgress={0}
                                 monthlyProgress={client.progress.monthlyProgress}
@@ -1145,10 +1153,16 @@ const HomePage = () => {
                               <div className="flex items-center gap-2">
                                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                   isClientOnline(client)
-                                    ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                    ? theme === 'dark'
+                                      ? 'bg-green-600/30 text-green-300 border border-green-500/70'
+                                      : 'bg-green-100 text-green-700 border border-green-500'
                                     : client.status === 'active'
-                                    ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                    : 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                    ? theme === 'dark'
+                                      ? 'bg-slate-600/30 text-slate-300 border border-slate-500/70'
+                                      : 'bg-gray-200 text-gray-700 border border-gray-400'
+                                    : theme === 'dark'
+                                      ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
+                                      : 'bg-gray-200 text-gray-600 border border-gray-400'
                                 }`}>
                                   {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
                                 </span>

@@ -178,8 +178,8 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
   }
 
   const handleAddRM = async () => {
-    if (!rmForm.exercise || !rmForm.weight || !rmForm.implement) {
-      alert('Por favor completa todos los campos')
+    if (!rmForm.exercise || !rmForm.weight) {
+      alert('Por favor completa el ejercicio y el peso')
       return
     }
 
@@ -273,8 +273,8 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
   }
 
   const handleAddPR = async () => {
-    if (!prForm.exercise || !prForm.time || !prForm.implement) {
-      alert('Por favor completa todos los campos')
+    if (!prForm.exercise || !prForm.time) {
+      alert('Por favor completa el ejercicio y el tiempo')
       return
     }
 

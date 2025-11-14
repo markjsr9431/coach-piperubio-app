@@ -344,8 +344,8 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
           {feedback.weightUsed.filter(w => w !== 'Otro').length > 0 && (
             <div className="mb-3 space-y-2">
               {feedback.weightUsed.filter(w => w !== 'Otro').map((implement) => (
-                <div key={implement} className="flex items-center gap-2">
-                  <label className={`text-sm font-medium min-w-[120px] ${
+                <div key={implement} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <label className={`text-sm font-medium sm:min-w-[120px] w-full sm:w-auto ${
                     theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                   }`}>
                     {implement} (kg):
@@ -356,7 +356,7 @@ const DailyFeedback = ({ dayIndex, clientId, onFeedbackChange, onSubmit }: Daily
                     onChange={(e) => handleWeightAmountChange(implement, e.target.value)}
                     placeholder="Ej: 10, 15, 20"
                     disabled={submitted}
-                    className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
+                    className={`w-full sm:flex-1 px-4 py-2 rounded-lg border transition-colors ${
                       submitted ? 'opacity-50 cursor-not-allowed' : ''
                     } ${
                       theme === 'dark'

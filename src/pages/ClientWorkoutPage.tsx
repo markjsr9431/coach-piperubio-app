@@ -496,7 +496,7 @@ const ClientWorkoutPage = () => {
                           variants={cardVariants}
                           initial="hidden"
                           animate="visible"
-                          className={`relative rounded-xl p-1.5 sm:p-3 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 aspect-square flex items-center justify-center w-full ${
+                          className={`relative rounded-xl p-1 sm:p-3 shadow-lg transition-all bg-gradient-to-br from-primary-600 to-primary-800 min-h-[120px] sm:aspect-square flex items-center justify-center w-full ${
                             isFeedbackSubmitted 
                               ? 'opacity-60 cursor-not-allowed' 
                               : 'hover:shadow-2xl cursor-pointer'
@@ -511,23 +511,23 @@ const ClientWorkoutPage = () => {
                             }}
                             className={isFeedbackSubmitted ? 'cursor-not-allowed' : 'cursor-pointer w-full h-full flex flex-col items-center justify-center'}
                           >
-                            <div className="text-center">
-                              <div className="text-2xl sm:text-4xl font-bold text-white mb-2">
+                            <div className="text-center px-2">
+                              <div className="text-2xl sm:text-4xl font-bold text-white mb-1 sm:mb-2">
                                 {currentDayIndex + 1}
                               </div>
-                              <div className="text-white font-semibold text-sm sm:text-lg mb-1">
+                              <div className="text-white font-semibold text-sm sm:text-lg mb-0.5 sm:mb-1">
                                 {workout.day.split(' - ')[1]?.replace(' (Opcional)', '')}
                               </div>
                               {isSaturday && (
-                                <div className="text-yellow-300 text-xs sm:text-sm font-semibold mb-1">
+                                <div className="text-yellow-300 text-xs sm:text-sm font-semibold mb-0.5 sm:mb-1">
                                   (Opcional)
                                 </div>
                               )}
-                              <div className="text-primary-100 text-xs sm:text-sm mt-2">
+                              <div className="text-primary-100 text-xs sm:text-sm mt-1 sm:mt-2">
                                 {workout.sections.reduce((acc, section) => acc + section.exercises.length, 0)} {t('exercise.count')}
                               </div>
                               {isFeedbackSubmitted && (
-                                <div className="text-green-300 text-xs font-semibold mt-2">
+                                <div className="text-green-300 text-xs font-semibold mt-1 sm:mt-2">
                                   ✓ Retroalimentación enviada
                                 </div>
                               )}
@@ -541,20 +541,20 @@ const ClientWorkoutPage = () => {
                             variants={cardVariants}
                             initial="hidden"
                             animate="visible"
-                            className={`relative rounded-xl p-1.5 sm:p-3 shadow-lg transition-all aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
+                            className={`relative rounded-xl p-1 sm:p-3 shadow-lg transition-all min-h-[120px] sm:aspect-square flex items-center justify-center cursor-pointer hover:shadow-2xl w-full ${
                               theme === 'dark'
                                 ? 'bg-slate-700 hover:bg-slate-600'
                                 : 'bg-white hover:bg-gray-100 border border-gray-300'
                             }`}
                             onClick={() => setShowRMAndPRModal(true)}
                           >
-                            <div className="text-center">
-                              <div className={`text-2xl sm:text-4xl font-bold mb-2 ${
+                            <div className="text-center px-2">
+                              <div className={`text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
                               }`}>
                                 RM
                               </div>
-                              <div className={`text-base sm:text-xl font-semibold mb-1 ${
+                              <div className={`text-base sm:text-xl font-semibold mb-0.5 sm:mb-1 ${
                                 theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                               }`}>
                                 y

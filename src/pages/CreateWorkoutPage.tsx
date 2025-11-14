@@ -323,31 +323,32 @@ const CreateWorkoutPage = () => {
                   key={sectionIndex}
                   className={`rounded-lg border ${
                     theme === 'dark' ? 'border-slate-700 bg-slate-700/50' : 'border-gray-200 bg-gray-50'
-                  } p-4`}
+                  } p-3 sm:p-4`}
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <input
                       type="text"
                       value={section.name}
                       onChange={(e) => handleSectionNameChange(sectionIndex, e.target.value)}
-                      className={`text-xl font-bold bg-transparent border-b-2 border-transparent focus:border-primary-500 focus:outline-none ${
+                      className={`text-lg sm:text-xl font-bold bg-transparent border-b-2 border-transparent focus:border-primary-500 focus:outline-none w-full sm:w-auto ${
                         theme === 'dark' ? 'text-white' : 'text-gray-900'
                       }`}
                     />
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <button
                         onClick={() => handleAddExercise(sectionIndex)}
-                        className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                        className="px-3 sm:px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1 sm:gap-2 whitespace-nowrap"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        Agregar Ejercicio
+                        <span className="hidden sm:inline">Agregar Ejercicio</span>
+                        <span className="sm:hidden">Agregar</span>
                       </button>
                       {sections.length > 1 && (
                         <button
                           onClick={() => handleDeleteSection(sectionIndex)}
-                          className={`p-2 rounded-lg transition-colors ${
+                          className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
                             theme === 'dark'
                               ? 'hover:bg-red-500/20 text-red-400'
                               : 'hover:bg-red-50 text-red-600'
@@ -366,7 +367,7 @@ const CreateWorkoutPage = () => {
                     {section.exercises.map((exercise, exerciseIndex) => (
                       <div
                         key={exerciseIndex}
-                        className={`flex items-center justify-between p-3 rounded-lg ${
+                        className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 p-3 rounded-lg ${
                           theme === 'dark' ? 'bg-slate-600/50' : 'bg-white'
                         }`}
                       >
@@ -443,7 +444,7 @@ const CreateWorkoutPage = () => {
                           )}
                         </div>
                         {!(editingExercise?.sectionIndex === sectionIndex && editingExercise?.exerciseIndex === exerciseIndex) && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <button
                               onClick={() => handleEditExercise(sectionIndex, exerciseIndex)}
                               className={`p-2 rounded-lg transition-colors ${
@@ -546,10 +547,10 @@ const CreateWorkoutPage = () => {
               </div>
 
               {/* Botones de Acción */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-700">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 border-t border-slate-700">
                 <button
                   onClick={() => navigate('/home')}
-                  className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                  className={`px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold transition-colors text-sm sm:text-base ${
                     theme === 'dark'
                       ? 'bg-slate-700 hover:bg-slate-600 text-white'
                       : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
@@ -560,7 +561,7 @@ const CreateWorkoutPage = () => {
                 <button
                   onClick={handleSave}
                   disabled={loading}
-                  className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-lg font-semibold hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-lg font-semibold hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
                 >
                   {loading ? 'Guardando...' : 'Crear Plan'}
                 </button>

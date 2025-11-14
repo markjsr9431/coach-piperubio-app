@@ -21,24 +21,23 @@ const TopBanner = () => {
   const [showUpdateModal, setShowUpdateModal] = useState(false)
   const [showColorSelector, setShowColorSelector] = useState(false)
   const [clientName, setClientName] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const [nameWidth, setNameWidth] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
+  const nameRef = useRef<HTMLHeadingElement>(null)
   const isHomePage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/home'
   const isViewingClient = location.pathname.startsWith('/client/') && params.clientId
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
 
-  // Función para manejar el botón back con límite hasta /home
+  // Función para manejar el botón back - navegar página por página
   const handleBack = () => {
     const path = location.pathname
-    if (path.startsWith('/client/')) {
-      // Si estamos viendo un cliente, ir al home
-      navigate('/home')
-    } else if (path === '/create-workout' || path === '/exercises') {
-      // Si estamos en otras páginas, ir al home
-      navigate('/home')
-    } else {
-      // Por defecto, ir al home
-      navigate('/home')
+    // No permitir volver hasta login
+    if (path === '/' || path === '/login' || path === '/home') {
+      return
     }
+    // Usar navigate(-1) para ir a la página anterior
+    navigate(-1)
   }
 
   // Cargar nombre del cliente cuando se está viendo un cliente específico
@@ -145,9 +144,56 @@ const TopBanner = () => {
     }
   }, [user, isCoach])
 
-  // Obtener nombre para mostrar
-  const getDisplayName = () => {
-    // Si estamos viendo un cliente específico, mostrar su nombre
+  // Función helper para obtener iniciales: "J. R."
+  const getInitials = (fullName: string): string => {
+    if (!fullName) return ''
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return ''
+    if (parts.length === 1) return `${parts[0][0]}.`.toUpperCase()
+    // Primer nombre inicial y primer apellido inicial
+    const firstName = parts[0]
+    const lastName = parts.length >= 3 ? parts[2] : parts[parts.length - 1]
+    return `${firstName[0]}. ${lastName[0]}.`.toUpperCase()
+  }
+
+  // Función helper para obtener nombre + apellido: "JOSE RUBIO"
+  const getNameAndLastName = (fullName: string): string => {
+    if (!fullName) return ''
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length <= 2) return fullName
+    // Primer nombre y primer apellido (parts[2] si hay 3+ partes)
+    if (parts.length === 3) {
+      return `${parts[0]} ${parts[2]}`
+    }
+    return `${parts[0]} ${parts[2]}`
+  }
+
+  // Función helper para obtener inicial + apellido: "J. RUBIO"
+  const getInitialAndLastName = (fullName: string): string => {
+    if (!fullName) return ''
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return ''
+    const firstName = parts[0]
+    const lastName = parts.length >= 3 ? parts[2] : parts[parts.length - 1]
+    return `${firstName[0]}. ${lastName}`.toUpperCase()
+  }
+
+  // Función helper para formatear nombres: mostrar solo primer nombre y primer apellido (para desktop)
+  const formatClientName = (fullName: string): string => {
+    if (!fullName) return ''
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length <= 2) return fullName
+    // Asumir formato: primer nombre, segundo nombre (opcional), primer apellido, segundo apellido (opcional)
+    // Si hay 3 partes: nombre, nombre, apellido -> mostrar primera y tercera
+    if (parts.length === 3) {
+      return `${parts[0]} ${parts[2]}`
+    }
+    // Para 4+ partes, primer nombre es parts[0], primer apellido es parts[2]
+    return `${parts[0]} ${parts[2]}`
+  }
+
+  // Obtener nombre completo sin truncar
+  const getFullName = (): string => {
     if (isViewingClient && clientName) {
       return clientName
     }
@@ -165,6 +211,38 @@ const TopBanner = () => {
     }
     
     return user.displayName || user.email || 'Usuario'
+  }
+
+  // Obtener nombre para mostrar con truncamiento condicional en móvil
+  const getDisplayName = () => {
+    const fullName = getFullName()
+    
+    // En desktop, usar formato normal (primer nombre + primer apellido)
+    if (!isMobile) {
+      return formatClientName(fullName)
+    }
+    
+    // En móvil con sticky header (scroll down), siempre mostrar iniciales
+    if (isScrolled) {
+      return getInitials(fullName)
+    }
+    
+    // En móvil sin scroll, usar jerarquía condicional
+    // Intentar nombre completo primero
+    const fullNameText = fullName
+    
+    // Si el nombre es muy largo (más de 20 caracteres), usar nombre + apellido
+    if (fullNameText.length > 20) {
+      const nameAndLast = getNameAndLastName(fullNameText)
+      // Si aún es largo, usar inicial + apellido
+      if (nameAndLast.length > 15) {
+        return getInitialAndLastName(fullNameText)
+      }
+      return nameAndLast
+    }
+    
+    // Si el nombre completo es razonable, mostrarlo
+    return fullNameText
   }
 
   // Obtener iniciales del usuario
@@ -211,6 +289,17 @@ const TopBanner = () => {
     setShowUserMenu(false)
   }
 
+  // Detectar si estamos en móvil
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640) // sm breakpoint de Tailwind
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   useEffect(() => {
     const handleScroll = () => {
       const scrollPosition = window.scrollY
@@ -220,6 +309,19 @@ const TopBanner = () => {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Medir ancho del nombre para detectar estiramiento (opcional, para futuras mejoras)
+  useEffect(() => {
+    if (nameRef.current && isMobile) {
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setNameWidth(entry.contentRect.width)
+        }
+      })
+      observer.observe(nameRef.current)
+      return () => observer.disconnect()
+    }
+  }, [isMobile, isScrolled, clientName, clientDisplayName, user])
 
   return (
     <motion.div
@@ -252,6 +354,7 @@ const TopBanner = () => {
           !isHomePage && isScrolled ? 'hidden sm:block' : ''
         }`}>
           <motion.h2 
+            ref={nameRef}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
@@ -261,7 +364,7 @@ const TopBanner = () => {
                 : (isScrolled ? 'text-base sm:text-2xl' : 'text-2xl sm:text-3xl')
             }`}
           >
-            {isViewingClient && clientName ? clientName : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
+            {isViewingClient && clientName ? getDisplayName() : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
           </motion.h2>
           {/* Fecha actual - Centrada */}
           <motion.p 

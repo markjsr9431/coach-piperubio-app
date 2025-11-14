@@ -18,7 +18,10 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
   const { t } = useLanguage()
   const { user } = useAuth()
   const [formData, setFormData] = useState({
-    displayName: '',
+    firstName: '',
+    secondName: '',
+    lastName: '',
+    secondLastName: '',
     email: '',
     phone: ''
   })
@@ -26,11 +29,32 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
+  // Función para parsear nombre completo en partes
+  const parseFullName = (fullName: string) => {
+    if (!fullName) return { firstName: '', secondName: '', lastName: '', secondLastName: '' }
+    const parts = fullName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) return { firstName: '', secondName: '', lastName: '', secondLastName: '' }
+    if (parts.length === 1) return { firstName: parts[0], secondName: '', lastName: '', secondLastName: '' }
+    if (parts.length === 2) return { firstName: parts[0], secondName: '', lastName: parts[1], secondLastName: '' }
+    if (parts.length === 3) return { firstName: parts[0], secondName: '', lastName: parts[2], secondLastName: '' }
+    // 4 o más partes: primer nombre, segundo nombre, primer apellido, segundo apellido
+    return {
+      firstName: parts[0] || '',
+      secondName: parts[1] || '',
+      lastName: parts[2] || '',
+      secondLastName: parts.slice(3).join(' ') || ''
+    }
+  }
+
   // Cargar datos actuales del usuario
   useEffect(() => {
     if (user && isOpen) {
+      const parsedName = parseFullName(user.displayName || '')
       setFormData({
-        displayName: user.displayName || '',
+        firstName: parsedName.firstName,
+        secondName: parsedName.secondName,
+        lastName: parsedName.lastName,
+        secondLastName: parsedName.secondLastName,
         email: user.email || '',
         phone: ''
       })
@@ -67,11 +91,20 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
     setLoading(true)
     setError(null)
 
+    // Combinar nombres en displayName completo
+    const nameParts = [
+      formData.firstName,
+      formData.secondName,
+      formData.lastName,
+      formData.secondLastName
+    ].filter(Boolean)
+    const fullDisplayName = nameParts.join(' ')
+
     try {
       // Actualizar displayName en Firebase Auth
-      if (formData.displayName !== user.displayName) {
+      if (fullDisplayName !== user.displayName) {
         await updateProfile(user, {
-          displayName: formData.displayName
+          displayName: fullDisplayName
         })
       }
 
@@ -89,7 +122,7 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
       if (userDoc.exists()) {
         // Actualizar documento existente
         await updateDoc(userRef, {
-          displayName: formData.displayName,
+          displayName: fullDisplayName,
           email: formData.email,
           phone: formData.phone || '',
           updatedAt: new Date().toISOString()
@@ -97,7 +130,7 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
       } else {
         // Crear nuevo documento
         await setDoc(userRef, {
-          displayName: formData.displayName,
+          displayName: fullDisplayName,
           email: formData.email,
           phone: formData.phone || '',
           createdAt: new Date().toISOString(),
@@ -116,7 +149,7 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
             // Actualizar el documento del cliente
             const clientDoc = snapshot.docs[0]
             await updateDoc(doc(db, 'clients', clientDoc.id), {
-              name: formData.displayName,
+              name: fullDisplayName,
               email: formData.email.toLowerCase(),
               updatedAt: new Date().toISOString()
             })
@@ -152,7 +185,10 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
 
   const handleClose = () => {
     setFormData({
-      displayName: '',
+      firstName: '',
+      secondName: '',
+      lastName: '',
+      secondLastName: '',
       email: '',
       phone: ''
     })
@@ -185,9 +221,9 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
           >
             <div className={`w-full max-w-md rounded-2xl shadow-2xl ${
               theme === 'dark' 
-                ? 'bg-slate-800/90 border border-slate-700/50' 
-                : 'bg-white/90 border border-gray-200/50'
-            } backdrop-blur-sm`}>
+                ? 'bg-slate-800 border border-slate-700' 
+                : 'bg-white border border-gray-200'
+            }`}>
               {success ? (
                 <div className="p-6 text-center">
                   <motion.div
@@ -244,26 +280,96 @@ const UpdateProfileModal = ({ isOpen, onClose, onSuccess }: UpdateProfileModalPr
 
                   {/* Form */}
                   <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    {/* Nombre */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        {t('modal.updateProfile.name')} *
-                      </label>
-                      <input
-                        type="text"
-                        name="displayName"
-                        value={formData.displayName}
-                        onChange={handleInputChange}
-                        required
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
-                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
-                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                        placeholder={t('modal.updateProfile.namePlaceholder')}
-                      />
+                    {/* Campos de Nombre - Dos columnas en desktop/tablet */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Primer Nombre */}
+                      <div>
+                        <label className={`block text-sm font-semibold mb-2 ${
+                          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Primer Nombre *
+                        </label>
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleInputChange}
+                          required
+                          className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                            theme === 'dark'
+                              ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                              : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                          } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                          placeholder="Primer nombre"
+                        />
+                      </div>
+
+                      {/* Segundo Nombre */}
+                      <div>
+                        <label className={`block text-sm font-semibold mb-2 ${
+                          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Segundo Nombre <span className="text-xs text-gray-500">(Opcional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="secondName"
+                          value={formData.secondName}
+                          onChange={handleInputChange}
+                          className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                            theme === 'dark'
+                              ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                              : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                          } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                          placeholder="Segundo nombre (opcional)"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Campos de Apellido - Dos columnas en desktop/tablet */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Primer Apellido */}
+                      <div>
+                        <label className={`block text-sm font-semibold mb-2 ${
+                          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Primer Apellido *
+                        </label>
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleInputChange}
+                          required
+                          className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                            theme === 'dark'
+                              ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                              : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                          } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                          placeholder="Primer apellido"
+                        />
+                      </div>
+
+                      {/* Segundo Apellido */}
+                      <div>
+                        <label className={`block text-sm font-semibold mb-2 ${
+                          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Segundo Apellido <span className="text-xs text-gray-500">(Opcional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          name="secondLastName"
+                          value={formData.secondLastName}
+                          onChange={handleInputChange}
+                          className={`w-full px-4 py-3 rounded-lg border transition-colors ${
+                            theme === 'dark'
+                              ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
+                              : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
+                          } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
+                          placeholder="Segundo apellido (opcional)"
+                        />
+                      </div>
                     </div>
 
                     {/* Email */}
