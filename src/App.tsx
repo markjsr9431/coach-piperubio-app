@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { usePresence } from './hooks/usePresence'
 import HomePage from './pages/HomePage'
 import ClientProfilePage from './pages/ClientProfilePage'
-import ExercisesPage from './pages/ExercisesPage'
 import CreateWorkoutPage from './pages/CreateWorkoutPage'
 import ProgressChartsPage from './pages/ProgressChartsPage'
 import FeedbackPage from './pages/FeedbackPage'
@@ -53,14 +52,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ClientProfilePage />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/exercises" 
-        element={
-          <ProtectedRoute>
-            <ExercisesPage />
           </ProtectedRoute>
         } 
       />

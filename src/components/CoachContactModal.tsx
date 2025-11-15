@@ -63,7 +63,7 @@ const CoachContactModal = ({ isOpen, onClose }: CoachContactModalProps) => {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {/* WhatsApp */}
               <a
-                href="https://wa.me/573127064758?text=Hola%20COACHPIPERUBIO,%20necesito%20ayuda%20con%20mi%20entrenamiento!"
+                href="https://wa.me/573127064758"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`flex flex-col items-center justify-center p-4 rounded-lg transition-all hover:scale-105 ${

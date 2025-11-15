@@ -187,7 +187,7 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
             style={{ minHeight: '100vh' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`w-full max-w-md rounded-2xl shadow-2xl backdrop-blur-sm ${
+            <div className={`w-11/12 max-w-sm sm:max-w-md mx-auto rounded-2xl shadow-2xl backdrop-blur-sm ${
               theme === 'dark' 
                 ? 'bg-slate-800/90 border border-slate-700/50' 
                 : 'bg-white/90 border border-gray-200/50'
@@ -195,18 +195,18 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
               {step === 'form' ? (
                 <>
                   {/* Header */}
-                  <div className={`p-6 border-b ${
+                  <div className={`px-3 sm:px-4 py-6 border-b ${
                     theme === 'dark' ? 'border-slate-700' : 'border-gray-200'
                   }`}>
-                    <div className="flex items-center justify-between">
-                      <h2 className={`text-2xl font-bold ${
+                    <div className="flex items-start justify-between gap-2 sm:gap-3">
+                      <h2 className={`text-xl sm:text-2xl font-bold break-words whitespace-normal flex-1 min-w-0 ${
                         theme === 'dark' ? 'text-white' : 'text-gray-900'
                       }`}>
                         {t('modal.addClient.title')}
                       </h2>
                       <button
                         onClick={handleClose}
-                        className={`p-2 rounded-lg transition-colors ${
+                        className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
                           theme === 'dark' 
                             ? 'hover:bg-slate-700 text-slate-400' 
                             : 'hover:bg-gray-100 text-gray-500'

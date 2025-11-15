@@ -400,10 +400,10 @@ const HomePage = () => {
       <TopBanner />
       
       {/* Espacio para el banner fijo */}
-      <div className="h-40 sm:h-48"></div>
+      <div className="h-24 sm:h-32"></div>
 
       {/* Contenido Principal */}
-      <div className="pt-8 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="pt-4 pb-12 px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -422,19 +422,18 @@ const HomePage = () => {
             >
               {isCoach ? t('dashboard.welcome') : t('dashboard.welcomeClient')}
             </motion.h1>
-            <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className={`text-base sm:text-xl ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-              }`}
-            >
-              {isCoach 
-                ? (user?.displayName || user?.email || 'Coach')
-                : (clientData?.name || user?.displayName || user?.email || 'Cliente')
-              }
-            </motion.p>
+            {!isCoach && (
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className={`text-base sm:text-xl ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}
+              >
+                {clientData?.name || user?.displayName || user?.email || 'Cliente'}
+              </motion.p>
+            )}
             {isCoach && (
               <motion.p 
                 initial={{ opacity: 0 }}
@@ -448,6 +447,35 @@ const HomePage = () => {
               </motion.p>
             )}
           </div>
+
+          {/* Campo de Búsqueda - Solo visible para el coach */}
+          {isCoach && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45 }}
+              className="mb-4"
+            >
+              <div className="relative max-w-md mx-auto">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar por nombre o apellido..."
+                  className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-colors ${
+                    theme === 'dark'
+                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                  }`}
+                />
+              </div>
+            </motion.div>
+          )}
 
           {/* Fichas de Acceso Rápido - Solo visible para clientes */}
           {!isCoach && clientData?.id && (
@@ -569,7 +597,9 @@ const HomePage = () => {
                 onClick={handleAddClient}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-primary-600 to-primary-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg"
+                className={`bg-gradient-to-r from-primary-600 to-primary-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-lg shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg border-2 ${
+                  theme === 'dark' ? 'border-primary-400' : 'border-primary-700'
+                }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -582,24 +612,14 @@ const HomePage = () => {
                 onClick={() => setShowImportModal(true)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg"
+                className={`bg-gradient-to-r from-green-600 to-green-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-lg shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg border-2 ${
+                  theme === 'dark' ? 'border-green-400' : 'border-green-700'
+                }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
                 Importar Clientes
-              </motion.button>
-              
-              <motion.button
-                onClick={() => navigate('/exercises')}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-green-600 to-green-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-                Ejercicios
               </motion.button>
             </motion.div>
           )}
@@ -608,28 +628,6 @@ const HomePage = () => {
           {isCoach ? (
             /* Vista del Coach - Lista de Clientes */
             <div className="mb-8">
-              {/* Campo de Búsqueda */}
-              <div className="mb-6">
-                <div className="relative max-w-md">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Buscar por nombre o apellido..."
-                    className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-colors ${
-                      theme === 'dark'
-                        ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                    }`}
-                  />
-                </div>
-              </div>
-              
               <div className="flex items-center justify-between mb-6">
                 <motion.h2 
                   initial={{ opacity: 0, x: -20 }}
@@ -798,7 +796,7 @@ const HomePage = () => {
                   {activeCategory === null ? (
                     <>
                       {/* Fichas grandes clickeables */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-6xl mx-auto mb-8">
+                      <div className="flex flex-wrap gap-4 sm:gap-6 justify-center max-w-6xl mx-auto mb-8">
                         {/* Ficha Clientes Nuevos */}
                         <motion.div
                           variants={cardVariants}
@@ -806,7 +804,7 @@ const HomePage = () => {
                           animate="visible"
                           whileHover={{ scale: 1.05, y: -5 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-green-600 to-green-800`}
+                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl flex-1 min-w-[200px] sm:min-w-[250px] max-w-[300px] bg-gradient-to-br from-green-600 to-green-800`}
                           onClick={() => setActiveCategory('new')}
                         >
                           <div className="text-center">
@@ -829,7 +827,7 @@ const HomePage = () => {
                           animate="visible"
                           whileHover={{ scale: 1.05, y: -5 }}
                           whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-blue-600 to-blue-800`}
+                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl flex-1 min-w-[200px] sm:min-w-[250px] max-w-[300px] bg-gradient-to-br from-blue-600 to-blue-800`}
                           onClick={() => setActiveCategory('old')}
                         >
                           <div className="text-center">
