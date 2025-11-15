@@ -25,7 +25,6 @@ const TopBanner = () => {
   const [isMobile, setIsMobile] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const configMenuRef = useRef<HTMLDivElement>(null)
-  const nameRef = useRef<HTMLHeadingElement>(null)
   const isHomePage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/home'
   const isViewingClient = location.pathname.startsWith('/client/') && params.clientId
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -369,24 +368,8 @@ const TopBanner = () => {
               </svg>
             </button>
           )}
-          {/* Título del cliente cuando hay botón back - Solo visible cuando no es homePage */}
-          {!isHomePage && isViewingClient && clientName && (
-            <div className="flex flex-col justify-center items-start gap-0.5 sm:gap-1">
-              <motion.h2 
-                ref={nameRef}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className={`font-bold uppercase transition-all duration-300 leading-tight ${
-                  isScrolled ? 'text-xs lg:text-2xl' : 'text-xs sm:text-base lg:text-2xl'
-                }`}
-              >
-                {getDisplayName()}
-              </motion.h2>
-            </div>
-          )}
           {/* Fecha - Movida a la izquierda */}
-          {(!isHomePage || (!isViewingClient || !clientName)) && (
+          {isHomePage && isCoach && (
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}

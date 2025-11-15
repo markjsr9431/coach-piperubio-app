@@ -58,8 +58,11 @@ const FeedbackPage = () => {
     }`}>
       <TopBanner />
       
+      {/* Espacio para el banner fijo */}
+      <div className="h-24 sm:h-28"></div>
+
       {/* Contenido Principal */}
-      <div className="pt-8 pb-12 px-4 sm:px-6 lg:px-8 relative">
+      <div className="pt-4 pb-12 px-4 sm:px-6 lg:px-8 relative">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

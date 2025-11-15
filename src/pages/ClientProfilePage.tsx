@@ -33,9 +33,9 @@ const ClientProfilePage = () => {
         : 'from-gray-50 via-gray-100 to-gray-200'
     }`}>
       <TopBanner />
-      <div className="h-40 sm:h-48"></div>
+      <div className="h-24 sm:h-28"></div>
 
-      <div className="pt-8 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="pt-4 pb-12 px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}

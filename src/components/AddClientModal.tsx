@@ -187,7 +187,7 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
             style={{ minHeight: '100vh' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className={`w-11/12 max-w-sm sm:max-w-md mx-auto rounded-2xl shadow-2xl backdrop-blur-sm ${
+            <div className={`w-[90vw] max-w-sm sm:max-w-md mx-auto rounded-2xl shadow-2xl backdrop-blur-sm flex flex-col ${
               theme === 'dark' 
                 ? 'bg-slate-800/90 border border-slate-700/50' 
                 : 'bg-white/90 border border-gray-200/50'
@@ -225,8 +225,10 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                   </div>
 
                   {/* Form */}
-                  <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    {/* Primer Nombre */}
+                  <form onSubmit={handleSubmit} className="flex flex-col">
+                    {/* Contenedor con scroll para los campos */}
+                    <div className="overflow-y-auto max-h-[75vh] p-4 space-y-4">
+                      {/* Primer Nombre */}
                     <div>
                       <label className={`block text-sm font-semibold mb-2 ${
                         theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
@@ -454,19 +456,22 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                       </select>
                     </div>
 
-                    {/* Error message */}
-                    {error && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm"
-                      >
-                        {error}
-                      </motion.div>
-                    )}
+                      {/* Error message */}
+                      {error && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm"
+                        >
+                          {error}
+                        </motion.div>
+                      )}
+                    </div>
 
                     {/* Buttons */}
-                    <div className="flex gap-3 pt-4">
+                    <div className={`flex gap-3 pt-4 px-4 pb-4 border-t ${
+                      theme === 'dark' ? 'border-slate-700/50' : 'border-gray-200/50'
+                    }`}>
                       <button
                         type="button"
                         onClick={handleClose}

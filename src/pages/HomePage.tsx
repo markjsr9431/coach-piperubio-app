@@ -796,7 +796,7 @@ const HomePage = () => {
                   {activeCategory === null ? (
                     <>
                       {/* Fichas grandes clickeables */}
-                      <div className="flex flex-wrap gap-4 sm:gap-6 justify-center max-w-6xl mx-auto mb-8">
+                      <div className="flex flex-row space-x-2 justify-start max-w-6xl mx-auto mb-8">
                         {/* Ficha Clientes Nuevos */}
                         <motion.div
                           variants={cardVariants}
@@ -839,31 +839,6 @@ const HomePage = () => {
                             </div>
                             <div className="text-blue-100 text-sm sm:text-base mt-2">
                               Haz clic para ver el listado
-                            </div>
-                          </div>
-                        </motion.div>
-
-                        {/* Ficha Crear Plan de Entreno */}
-                        <motion.div
-                          variants={cardVariants}
-                          initial="hidden"
-                          animate="visible"
-                          whileHover={{ scale: 1.05, y: -5 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl w-full bg-gradient-to-br from-purple-600 to-purple-800`}
-                          onClick={() => navigate('/create-workout')}
-                        >
-                          <div className="text-center">
-                            <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                              <svg className="w-10 h-10 sm:w-12 sm:h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </div>
-                            <div className="text-white font-semibold text-lg sm:text-xl mb-2">
-                              Crear Plan de Entreno
-                            </div>
-                            <div className="text-purple-100 text-sm sm:text-base mt-2">
-                              Haz clic para crear
                             </div>
                           </div>
                         </motion.div>

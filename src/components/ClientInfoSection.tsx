@@ -504,6 +504,9 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       
       await addDoc(anthropometricRef, measureData)
 
+      // Mensaje de éxito
+      alert('Medida antropométrica guardada exitosamente')
+
       // Resetear formulario
       setAnthropometricFormData({
         date: new Date().toISOString().split('T')[0],
