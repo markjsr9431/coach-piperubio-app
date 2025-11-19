@@ -74,6 +74,7 @@ const HomePage = () => {
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all')
   const [rmFilter, setRmFilter] = useState<boolean | null>(null)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [hasFeedbackToday, setHasFeedbackToday] = useState(false)
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'

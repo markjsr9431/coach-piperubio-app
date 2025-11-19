@@ -541,7 +541,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
         thigh: '',
         notes: ''
       })
-      setShowAnthropometricListModal(false)
       setShowAnthropometricModal(false)
     } catch (error: any) {
       console.error('Error saving anthropometric measure:', error)
@@ -1105,8 +1104,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                   </button>
                   <button
                     onClick={() => {
-                      setShowAnthropometricModal(false)
-                      setShowAnthropometricListModal(true)
+                      setShowAnthropometricModal(true)
                     }}
                     className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
                   >
@@ -2053,7 +2051,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => {
-                    setShowAnthropometricListModal(false)
                     setShowAnthropometricModal(false)
                   }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
@@ -2067,7 +2064,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                 <button
                   onClick={async () => {
                     await handleSaveAnthropometric()
-                    setShowAnthropometricListModal(false)
                     setShowAnthropometricModal(false)
                   }}
                   disabled={savingAnthropometric}
