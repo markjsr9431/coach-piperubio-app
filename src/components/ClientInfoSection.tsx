@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db, auth } from '../firebaseConfig'
-import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, getDocs } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
+import TrainingCalendar from './TrainingCalendar'
 
 interface ClientInfoSectionProps {
   clientId: string
@@ -24,10 +25,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
-    firstName: '',
-    secondName: '',
-    firstLastName: '',
-    secondLastName: '',
+    fullName: '',
     email: '',
     phone: '',
     cedula: '',
@@ -41,33 +39,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     otherPaymentMethod: ''
   })
 
-  // Función helper para combinar nombres
-  const combineName = (firstName: string, secondName: string, firstLastName: string, secondLastName: string): string => {
-    const parts = [firstName, secondName, firstLastName, secondLastName].filter(Boolean)
-    return parts.join(' ')
-  }
-
-  // Función helper para separar nombre completo en partes
-  const splitName = (fullName: string): { firstName: string; secondName: string; firstLastName: string; secondLastName: string } => {
-    const parts = fullName.trim().split(/\s+/).filter(Boolean)
-    if (parts.length === 0) {
-      return { firstName: '', secondName: '', firstLastName: '', secondLastName: '' }
-    } else if (parts.length === 1) {
-      return { firstName: parts[0], secondName: '', firstLastName: '', secondLastName: '' }
-    } else if (parts.length === 2) {
-      return { firstName: parts[0], secondName: '', firstLastName: parts[1], secondLastName: '' }
-    } else if (parts.length === 3) {
-      return { firstName: parts[0], secondName: '', firstLastName: parts[1], secondLastName: parts[2] }
-    } else {
-      // Si tiene 4 o más partes, asumir: primer nombre, segundo nombre, primer apellido, segundo apellido
-      return { 
-        firstName: parts[0], 
-        secondName: parts[1], 
-        firstLastName: parts[2], 
-        secondLastName: parts.slice(3).join(' ') 
-      }
-    }
-  }
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [photoBase64, setPhotoBase64] = useState<string | null>(null)
   const [photoRemoved, setPhotoRemoved] = useState(false)
@@ -83,11 +54,12 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     otherPaymentMethod: ''
   })
   const [savingPayment, setSavingPayment] = useState(false)
-  const [isPersonalInfoExpanded, setIsPersonalInfoExpanded] = useState(false)
-  const [isSubscriptionExpanded, setIsSubscriptionExpanded] = useState(false)
-  const [isAnthropometricExpanded, setIsAnthropometricExpanded] = useState(false)
-  const [anthropometricMeasures, setAnthropometricMeasures] = useState<any[]>([])
+  const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false)
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [showAnthropometricModal, setShowAnthropometricModal] = useState(false)
+  const [anthropometricMeasures, setAnthropometricMeasures] = useState<any[]>([])
+  const [showAnthropometricListModal, setShowAnthropometricListModal] = useState(false)
+  const [showAnthropometricHistory, setShowAnthropometricHistory] = useState(false)
   const [anthropometricFormData, setAnthropometricFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     weight: '',
@@ -132,7 +104,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
             : null
 
           setFormData({
-            ...splitName(data.name || ''),
+            fullName: data.name || '',
             email: data.email || '',
             phone: data.phone || '',
             cedula: data.cedula || '',
@@ -299,13 +271,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       
       if (clientDoc.exists()) {
         const clientData = clientDoc.data()
-        const updatedName = combineName(
-          formData.firstName.trim(),
-          formData.secondName.trim(),
-          formData.firstLastName.trim(),
-          formData.secondLastName.trim()
-        )
-        
         const subscriptionStartDate = formData.subscriptionStartDate 
           ? new Date(formData.subscriptionStartDate) 
           : null
@@ -314,7 +279,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           : null
 
         await updateDoc(clientRef, {
-          name: updatedName,
+          name: formData.fullName.trim(),
           email: formData.email.trim().toLowerCase(),
           phone: formData.phone.trim() || null,
           cedula: formData.cedula.trim() || null,
@@ -448,6 +413,61 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     }
   }
 
+  // Función crítica para borrar pago y actualizar status del cliente si es necesario
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!clientId || !isCoach) return
+
+    // Confirmación
+    if (!window.confirm('¿Está seguro de borrar este pago?')) {
+      return
+    }
+
+    try {
+      // Borrar el documento de pago
+      const paymentRef = doc(db, 'clients', clientId, 'payments', paymentId)
+      await deleteDoc(paymentRef)
+
+      // Lógica crítica: Verificar si hay pagos activos restantes
+      const paymentsRef = collection(db, 'clients', clientId, 'payments')
+      const paymentsSnapshot = await getDocs(query(paymentsRef, orderBy('date', 'desc')))
+      
+      const now = new Date()
+      let hasActivePayment = false
+
+      paymentsSnapshot.forEach((doc) => {
+        const paymentData = doc.data()
+        const paymentDate = paymentData.date?.toDate 
+          ? paymentData.date.toDate() 
+          : paymentData.date 
+          ? new Date(paymentData.date) 
+          : null
+
+        if (paymentDate) {
+          // Considerar pago activo si la fecha es hoy o en el futuro
+          // O si es reciente (últimos 30 días) y no hay fecha de fin de suscripción
+          const daysDiff = Math.floor((now.getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24))
+          if (daysDiff <= 30 || paymentDate >= now) {
+            hasActivePayment = true
+          }
+        }
+      })
+
+      // Si no hay pagos activos, actualizar el status del cliente a 'inactive'
+      if (!hasActivePayment) {
+        const clientRef = doc(db, 'clients', clientId)
+        await updateDoc(clientRef, {
+          status: 'inactive'
+        })
+        alert('Pago borrado. El cliente ha sido marcado como inactivo porque no tiene pagos activos.')
+      } else {
+        alert('Pago borrado exitosamente.')
+      }
+    } catch (error: any) {
+      console.error('Error deleting payment:', error)
+      alert(`Error al borrar el pago: ${error.message || 'Error desconocido'}`)
+    }
+  }
+
   const handleAnthropometricInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setAnthropometricFormData(prev => ({ ...prev, [name]: value }))
@@ -506,6 +526,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
 
       // Mensaje de éxito
       alert('Medida antropométrica guardada exitosamente')
+      
+      // Nota: La lista se actualizará automáticamente gracias a onSnapshot en el useEffect
 
       // Resetear formulario
       setAnthropometricFormData({
@@ -520,6 +542,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
         thigh: '',
         notes: ''
       })
+      setShowAnthropometricListModal(false)
       setShowAnthropometricModal(false)
     } catch (error: any) {
       console.error('Error saving anthropometric measure:', error)
@@ -573,7 +596,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       
       // Información Personal
       csvRows.push('INFORMACIÓN PERSONAL')
-      csvRows.push('Nombre,' + (combineName(formData.firstName, formData.secondName, formData.firstLastName, formData.secondLastName) || ''))
+      csvRows.push('Nombre,' + (formData.fullName || ''))
       csvRows.push('Email,' + (formData.email || ''))
       csvRows.push('Teléfono,' + (formData.phone || ''))
       csvRows.push('Cédula,' + (formData.cedula || ''))
@@ -633,7 +656,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      const fullName = combineName(formData.firstName, formData.secondName, formData.firstLastName, formData.secondLastName)
+      const fullName = formData.fullName
       const fileName = `cliente_${fullName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`
       link.setAttribute('download', fileName)
       document.body.appendChild(link)
@@ -660,44 +683,66 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
 
   return (
     <>
-      {/* Form - Tres Columnas con Secciones Colapsables */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start mt-8">
-        {/* Columna Izquierda - Información Personal */}
-        <div className={`rounded-xl shadow-lg overflow-hidden ${
-          theme === 'dark' 
-            ? 'bg-slate-800/80 border border-slate-700' 
-            : 'bg-white border border-gray-200'
-        }`}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsPersonalInfoExpanded(!isPersonalInfoExpanded)
-            }}
-            className={`w-full p-6 flex items-center justify-between transition-colors ${
-              theme === 'dark' 
-                ? 'hover:bg-slate-700/50' 
-                : 'hover:bg-gray-50'
+      {/* Form - Layout Horizontal */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start mt-8">
+        {/* Botón Información Personal */}
+        <button
+          onClick={() => setShowPersonalInfoModal(true)}
+          className={`p-4 rounded-xl shadow-lg transition-all hover:scale-105 flex items-center justify-between ${
+            theme === 'dark' 
+              ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/50' 
+              : 'bg-white border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <h2 className={`text-lg sm:text-xl font-bold ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
+            Información Personal
+          </h2>
+          <svg
+            className={`w-5 h-5 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+            }`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
+      {/* Modal de Información Personal */}
+      {showPersonalInfoModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
+              theme === 'dark' ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
             }`}
           >
-            <h2 className={`text-lg sm:text-xl font-bold ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              Información Personal
-            </h2>
-            <svg
-              className={`w-5 h-5 transition-transform ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
-              } ${isPersonalInfoExpanded ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          
-          {isPersonalInfoExpanded && (
-            <div className="px-6 pb-6">
+            <div className="sticky top-0 z-10 p-6 border-b bg-inherit flex items-center justify-between">
+              <h2 className={`text-2xl font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Información Personal
+              </h2>
+              <button
+                onClick={() => setShowPersonalInfoModal(false)}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-slate-700 text-slate-300' 
+                    : 'hover:bg-gray-100 text-gray-600'
+                }`}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
               {/* Foto de Perfil */}
               <div className="mb-6">
                 <label className={`block text-sm font-semibold mb-3 ${
@@ -773,17 +818,17 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
 
               {/* Campos del formulario */}
               <div className="space-y-4">
-                {/* Primer Nombre */}
+                {/* Nombre Completo */}
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                   }`}>
-                    Primer Nombre *
+                    Nombre Completo *
                   </label>
                   <input
                     type="text"
-                    name="firstName"
-                    value={formData.firstName}
+                    name="fullName"
+                    value={formData.fullName}
                     onChange={handleInputChange}
                     required
                     className={`w-full px-4 py-2 rounded-lg border transition-colors ${
@@ -791,71 +836,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                         ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
                         : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
                     } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                    placeholder="Ej: Juan"
-                  />
-                </div>
-
-                {/* Segundo Nombre */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                  }`}>
-                    Segundo Nombre
-                  </label>
-                  <input
-                    type="text"
-                    name="secondName"
-                    value={formData.secondName}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
-                      theme === 'dark'
-                        ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
-                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
-                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                    placeholder="Ej: Carlos (opcional)"
-                  />
-                </div>
-
-                {/* Primer Apellido */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                  }`}>
-                    Primer Apellido *
-                  </label>
-                  <input
-                    type="text"
-                    name="firstLastName"
-                    value={formData.firstLastName}
-                    onChange={handleInputChange}
-                    required
-                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
-                      theme === 'dark'
-                        ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
-                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
-                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                    placeholder="Ej: Pérez"
-                  />
-                </div>
-
-                {/* Segundo Apellido */}
-                <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                  }`}>
-                    Segundo Apellido
-                  </label>
-                  <input
-                    type="text"
-                    name="secondLastName"
-                    value={formData.secondLastName}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-2 rounded-lg border transition-colors ${
-                      theme === 'dark'
-                        ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400'
-                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
-                    } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                    placeholder="Ej: González (opcional)"
+                    placeholder="Ej: Juan Carlos Pérez González"
                   />
                 </div>
 
@@ -966,23 +947,24 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                 </div>
               </div>
             </div>
-          )}
+          </motion.div>
         </div>
+      )}
 
-        {/* Botón Ver Retroalimentación */}
+        {/* Botón Medidas Antropométricas */}
         {clientId && (
           <button
-            onClick={() => navigate(`/client/${clientId}/feedback`)}
-            className={`w-full p-6 rounded-xl shadow-lg transition-all hover:scale-105 flex items-center justify-between ${
+            onClick={() => setShowAnthropometricModal(true)}
+            className={`p-4 rounded-xl shadow-lg transition-all hover:scale-105 flex items-center justify-between ${
               theme === 'dark' 
                 ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/50' 
                 : 'bg-white border border-gray-200 hover:bg-gray-50'
             }`}
           >
-            <h2 className={`text-xl font-bold ${
+            <h2 className={`text-lg sm:text-xl font-bold ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
-              Ver Retroalimentación
+              Medidas Antropométricas
             </h2>
             <svg
               className={`w-5 h-5 ${
@@ -997,191 +979,43 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           </button>
         )}
 
-        {/* Sección Medidas Antropométricas */}
-        {clientId && (
-          <div className={`rounded-xl shadow-lg overflow-hidden ${
+        {/* Botón Gestión de Suscripción y Pagos */}
+        <button
+          onClick={() => setShowSubscriptionModal(true)}
+          className={`p-4 rounded-xl shadow-lg transition-all hover:scale-105 flex items-center justify-between ${
             theme === 'dark' 
-              ? 'bg-slate-800/80 border border-slate-700' 
-              : 'bg-white border border-gray-200'
+              ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/50' 
+              : 'bg-white border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <h2 className={`text-lg sm:text-xl font-bold ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsAnthropometricExpanded(!isAnthropometricExpanded)
-              }}
-              className={`w-full p-6 flex items-center justify-between transition-colors ${
-                theme === 'dark' 
-                  ? 'hover:bg-slate-700/50' 
-                  : 'hover:bg-gray-50'
-              }`}
-            >
-              <h2 className={`text-xl font-bold ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
-                Medidas Antropométricas
-              </h2>
-              <svg
-                className={`w-5 h-5 transition-transform ${
-                  theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
-                } ${isAnthropometricExpanded ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            
-            {isAnthropometricExpanded && (
-              <div className="px-6 pb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className={`text-lg font-semibold ${
-                    theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                  }`}>
-                    Historial de Medidas
-                  </h3>
-                  <button
-                    onClick={() => setShowAnthropometricModal(true)}
-                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Añadir Medida
-                  </button>
-                </div>
-
-                {anthropometricMeasures.length === 0 ? (
-                  <div className={`text-center py-8 rounded-lg ${
-                    theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                  }`}>
-                    <p className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-                      No hay medidas registradas aún
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {anthropometricMeasures.map((measure) => {
-                      const measureDate = measure.date?.toDate 
-                        ? measure.date.toDate() 
-                        : measure.date 
-                        ? new Date(measure.date) 
-                        : new Date()
-                      
-                      return (
-                        <div
-                          key={measure.id}
-                          className={`p-4 rounded-lg border ${
-                            theme === 'dark' 
-                              ? 'bg-slate-700/50 border-slate-600' 
-                              : 'bg-white border-gray-200'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <p className={`font-semibold ${
-                              theme === 'dark' ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              {measureDate.toLocaleDateString('es-ES', { 
-                                day: '2-digit', 
-                                month: '2-digit', 
-                                year: 'numeric' 
-                              })}
-                            </p>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                            {measure.weight && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Peso: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.weight} kg
-                                </span>
-                              </div>
-                            )}
-                            {measure.bodyFat && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>% Grasa: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.bodyFat}%
-                                </span>
-                              </div>
-                            )}
-                            {measure.muscleMass && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Masa Muscular: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.muscleMass} kg
-                                </span>
-                              </div>
-                            )}
-                            {measure.waist && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Cintura: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.waist} cm
-                                </span>
-                              </div>
-                            )}
-                            {measure.hip && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Cadera: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.hip} cm
-                                </span>
-                              </div>
-                            )}
-                            {measure.chest && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Pecho: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.chest} cm
-                                </span>
-                              </div>
-                            )}
-                            {measure.arm && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Brazo: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.arm} cm
-                                </span>
-                              </div>
-                            )}
-                            {measure.thigh && (
-                              <div>
-                                <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Muslo: </span>
-                                <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                                  {measure.thigh} cm
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {measure.notes && (
-                            <div className="mt-3 pt-3 border-t border-slate-700/50">
-                              <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
-                                {measure.notes}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+            Gestión de Suscripción y Pagos
+          </h2>
+          <svg
+            className={`w-5 h-5 ${
+              theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+            }`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
 
         {/* Botón RM y PR */}
         {clientId && (
           <button
             onClick={() => navigate(`/client/${clientId}/rm-pr`)}
-            className={`w-full p-6 rounded-xl shadow-lg transition-all hover:scale-105 flex items-center justify-between ${
+            className={`p-4 rounded-xl shadow-lg transition-all hover:scale-105 flex items-center justify-between ${
               theme === 'dark' 
                 ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/50' 
                 : 'bg-white border border-gray-200 hover:bg-gray-50'
             }`}
           >
-            <h2 className={`text-xl font-bold ${
+            <h2 className={`text-lg sm:text-xl font-bold ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
               RM y PR
@@ -1199,42 +1033,252 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           </button>
         )}
 
-        {/* Columna Derecha - Gestión de Suscripción y Pagos */}
-        <div className={`rounded-xl shadow-lg overflow-hidden ${
-          theme === 'dark' 
-            ? 'bg-slate-800/80 border border-slate-700' 
-            : 'bg-white border border-gray-200'
-        }`}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              setIsSubscriptionExpanded(!isSubscriptionExpanded)
-            }}
-            className={`w-full p-6 flex items-center justify-between transition-colors ${
-              theme === 'dark' 
-                ? 'hover:bg-slate-700/50' 
-                : 'hover:bg-gray-50'
-            }`}
-          >
-            <h2 className={`text-lg sm:text-xl font-bold ${
+        {/* Sección Calendario de Actividad */}
+        {clientId && isCoach && (
+          <div className={`p-4 rounded-xl shadow-lg ${
+            theme === 'dark' 
+              ? 'bg-slate-800/80 border border-slate-700' 
+              : 'bg-white border border-gray-200'
+          }`}>
+            <h2 className={`text-lg sm:text-xl font-bold mb-4 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
             }`}>
-              Gestión de Suscripción y Pagos
+              Calendario de Actividad
             </h2>
-            <svg
-              className={`w-5 h-5 transition-transform ${
-                theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
-              } ${isSubscriptionExpanded ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          
-          {isSubscriptionExpanded && (
-            <div className="px-6 pb-6">
+            <TrainingCalendar clientId={clientId} />
+          </div>
+        )}
+      </div>
+
+      {/* Modal de Medidas Antropométricas */}
+      {showAnthropometricModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
+              theme === 'dark' ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+            }`}
+          >
+            <div className="sticky top-0 z-10 p-6 border-b bg-inherit flex items-center justify-between">
+              <h2 className={`text-2xl font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Medidas Antropométricas
+              </h2>
+              <button
+                onClick={() => setShowAnthropometricModal(false)}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-slate-700 text-slate-300' 
+                    : 'hover:bg-gray-100 text-gray-600'
+                }`}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h3 className={`text-lg font-semibold ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Historial de Medidas
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowAnthropometricHistory(!showAnthropometricHistory)}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
+                      showAnthropometricHistory
+                        ? 'bg-slate-600 hover:bg-slate-700 text-white'
+                        : theme === 'dark'
+                        ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                    }`}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {showAnthropometricHistory ? 'Ocultar Registro' : 'Ver Registro'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAnthropometricModal(false)
+                      setShowAnthropometricListModal(true)
+                    }}
+                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Añadir Medida
+                  </button>
+                </div>
+              </div>
+
+              {anthropometricMeasures.length === 0 ? (
+                <div className={`text-center py-8 rounded-lg ${
+                  theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                }`}>
+                  <p className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                    No hay medidas registradas aún
+                  </p>
+                </div>
+              ) : showAnthropometricHistory ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {anthropometricMeasures.map((measure) => {
+                    const measureDate = measure.date?.toDate 
+                      ? measure.date.toDate() 
+                      : measure.date 
+                      ? new Date(measure.date) 
+                      : new Date()
+                    
+                    return (
+                      <div
+                        key={measure.id}
+                        className={`p-4 rounded-lg border ${
+                          theme === 'dark' 
+                            ? 'bg-slate-700/50 border-slate-600' 
+                            : 'bg-white border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <p className={`font-semibold ${
+                            theme === 'dark' ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {measureDate.toLocaleDateString('es-ES', { 
+                              day: '2-digit', 
+                              month: '2-digit', 
+                              year: 'numeric' 
+                            })}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                          {measure.weight && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Peso: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.weight} kg
+                              </span>
+                            </div>
+                          )}
+                          {measure.bodyFat && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>% Grasa: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.bodyFat}%
+                              </span>
+                            </div>
+                          )}
+                          {measure.muscleMass && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Masa Muscular: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.muscleMass} kg
+                              </span>
+                            </div>
+                          )}
+                          {measure.waist && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Cintura: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.waist} cm
+                              </span>
+                            </div>
+                          )}
+                          {measure.hip && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Cadera: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.hip} cm
+                              </span>
+                            </div>
+                          )}
+                          {measure.chest && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Pecho: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.chest} cm
+                              </span>
+                            </div>
+                          )}
+                          {measure.arm && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Brazo: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.arm} cm
+                              </span>
+                            </div>
+                          )}
+                          {measure.thigh && (
+                            <div>
+                              <span className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>Muslo: </span>
+                              <span className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                                {measure.thigh} cm
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {measure.notes && (
+                          <div className="mt-3 pt-3 border-t border-slate-700/50">
+                            <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>
+                              {measure.notes}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className={`text-center py-8 rounded-lg ${
+                  theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
+                }`}>
+                  <p className={`${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+                    Haz clic en "Ver Registro" para ver el historial completo de medidas
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Modal de Gestión de Suscripción y Pagos */}
+      {showSubscriptionModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${
+              theme === 'dark' ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
+            }`}
+          >
+            <div className="sticky top-0 z-10 p-6 border-b bg-inherit flex items-center justify-between">
+              <h2 className={`text-2xl font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Gestión de Suscripción y Pagos
+              </h2>
+              <button
+                onClick={() => setShowSubscriptionModal(false)}
+                className={`p-2 rounded-lg transition-colors ${
+                  theme === 'dark' 
+                    ? 'hover:bg-slate-700 text-slate-300' 
+                    : 'hover:bg-gray-100 text-gray-600'
+                }`}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6">
               {/* Sección de Gestión de Suscripciones */}
               <div className="mb-6">
                 <h3 className={`text-lg font-semibold mb-4 ${
@@ -1388,90 +1432,142 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                       No hay pagos registrados aún
                     </p>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {payments.map((payment) => {
-                      const paymentDate = payment.date?.toDate 
-                        ? payment.date.toDate() 
-                        : payment.date 
-                        ? new Date(payment.date) 
-                        : new Date()
-                      
-                      return (
-                        <div
-                          key={payment.id}
-                          className={`p-4 rounded-lg border ${
-                            theme === 'dark' 
-                              ? 'bg-slate-700/50 border-slate-600' 
-                              : 'bg-white border-gray-200'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
-                                <p className={`font-semibold ${
-                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                }`}>
-                                  {paymentDate.toLocaleDateString('es-ES', { 
-                                    day: '2-digit', 
-                                    month: '2-digit', 
-                                    year: 'numeric' 
-                                  })}
-                                </p>
-                                {payment.amount && (
-                                  <span className={`px-2 py-1 rounded text-sm font-semibold ${
+                ) : (() => {
+                  // Agrupar pagos por mes/año
+                  const groupedPayments: { [key: string]: typeof payments } = {}
+                  payments.forEach((payment) => {
+                    const paymentDate = payment.date?.toDate 
+                      ? payment.date.toDate() 
+                      : payment.date 
+                      ? new Date(payment.date) 
+                      : new Date()
+                    const monthKey = paymentDate.toLocaleDateString('es-ES', { 
+                      month: 'long', 
+                      year: 'numeric' 
+                    })
+                    if (!groupedPayments[monthKey]) {
+                      groupedPayments[monthKey] = []
+                    }
+                    groupedPayments[monthKey].push(payment)
+                  })
+                  
+                  // Ordenar meses de más reciente a más antiguo
+                  const sortedMonths = Object.keys(groupedPayments).sort((a, b) => {
+                    const dateA = new Date(a)
+                    const dateB = new Date(b)
+                    return dateB.getTime() - dateA.getTime()
+                  })
+                  
+                  return (
+                    <div className="space-y-6">
+                      {sortedMonths.map((monthKey) => (
+                        <div key={monthKey}>
+                          <h4 className={`text-md font-bold mb-3 ${
+                            theme === 'dark' ? 'text-slate-200' : 'text-gray-800'
+                          }`}>
+                            {monthKey.charAt(0).toUpperCase() + monthKey.slice(1)}
+                          </h4>
+                          <div className="space-y-3">
+                            {groupedPayments[monthKey].map((payment) => {
+                              const paymentDate = payment.date?.toDate 
+                                ? payment.date.toDate() 
+                                : payment.date 
+                                ? new Date(payment.date) 
+                                : new Date()
+                              
+                              return (
+                                <div
+                                  key={payment.id}
+                                  className={`p-4 rounded-lg border ${
                                     theme === 'dark' 
-                                      ? 'bg-green-500/20 text-green-300' 
-                                      : 'bg-green-100 text-green-700'
-                                  }`}>
-                                    ${payment.amount.toLocaleString('es-ES')}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap gap-2 text-sm">
-                                <span className={`px-2 py-1 rounded ${
-                                  theme === 'dark' 
-                                    ? 'bg-primary-500/20 text-primary-300' 
-                                    : 'bg-primary-100 text-primary-700'
-                                }`}>
-                                  {payment.method === 'efectivo' ? 'Efectivo' : 
-                                   payment.method === 'transferencia' ? 'Transferencia' : 
-                                   payment.method === 'credito' ? 'Crédito' : payment.method}
-                                </span>
-                                {payment.frequency && (
-                                  <span className={`px-2 py-1 rounded ${
-                                    theme === 'dark' 
-                                      ? 'bg-blue-500/20 text-blue-300' 
-                                      : 'bg-blue-100 text-blue-700'
-                                  }`}>
-                                    {payment.frequency === 'mensual' ? 'Mensual' : 
-                                     payment.frequency === 'trimestral' ? 'Trimestral' : 
-                                     payment.frequency === 'cuotas' ? 'Cuotas' :
-                                     payment.frequency === 'dias' ? 'Días' :
-                                     payment.frequency === 'por_clases' ? 'Por Clases' :
-                                     payment.frequency || ''}
-                                  </span>
-                                )}
-                              </div>
-                              {payment.notes && (
-                                <p className={`mt-2 text-sm ${
-                                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                                }`}>
-                                  {payment.notes}
-                                </p>
-                              )}
-                            </div>
+                                      ? 'bg-slate-700/50 border-slate-600' 
+                                      : 'bg-white border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-2">
+                                        <p className={`font-semibold ${
+                                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                        }`}>
+                                          {paymentDate.toLocaleDateString('es-ES', { 
+                                            day: '2-digit', 
+                                            month: '2-digit', 
+                                            year: 'numeric' 
+                                          })}
+                                        </p>
+                                        {payment.amount && (
+                                          <span className={`px-2 py-1 rounded text-sm font-semibold ${
+                                            theme === 'dark' 
+                                              ? 'bg-green-500/20 text-green-300' 
+                                              : 'bg-green-100 text-green-700'
+                                          }`}>
+                                            ${payment.amount.toLocaleString('es-ES')}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {isCoach && (
+                                        <div className="mt-2">
+                                          <button
+                                            onClick={() => handleDeletePayment(payment.id)}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                                              theme === 'dark'
+                                                ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50'
+                                                : 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200'
+                                            }`}
+                                          >
+                                            Borrar Pago
+                                          </button>
+                                        </div>
+                                      )}
+                                      <div className="flex flex-wrap gap-2 text-sm">
+                                        <span className={`px-2 py-1 rounded ${
+                                          theme === 'dark' 
+                                            ? 'bg-primary-500/20 text-primary-300' 
+                                            : 'bg-primary-100 text-primary-700'
+                                        }`}>
+                                          {payment.method === 'efectivo' ? 'Efectivo' : 
+                                           payment.method === 'transferencia' ? 'Transferencia' : 
+                                           payment.method === 'credito' ? 'Crédito' : payment.method}
+                                        </span>
+                                        {payment.frequency && (
+                                          <span className={`px-2 py-1 rounded ${
+                                            theme === 'dark' 
+                                              ? 'bg-blue-500/20 text-blue-300' 
+                                              : 'bg-blue-100 text-blue-700'
+                                          }`}>
+                                            {payment.frequency === 'mensual' ? 'Mensual' : 
+                                             payment.frequency === 'trimestral' ? 'Trimestral' : 
+                                             payment.frequency === 'cuotas' ? 'Cuotas' :
+                                             payment.frequency === 'dias' ? 'Días' :
+                                             payment.frequency === 'por_clases' ? 'Por Clases' :
+                                             payment.frequency || ''}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {payment.notes && (
+                                        <p className={`mt-2 text-sm ${
+                                          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                                        }`}>
+                                          {payment.notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
-          )}
+          </motion.div>
         </div>
-      </div>
+      )}
 
       {/* Botón para ver gráficas de progreso - Solo para coach */}
       {clientId && isCoach && showProgressButton && (
@@ -1957,7 +2053,10 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
 
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={() => setShowAnthropometricModal(false)}
+                  onClick={() => {
+                    setShowAnthropometricListModal(false)
+                    setShowAnthropometricModal(false)
+                  }}
                   className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors ${
                     theme === 'dark'
                       ? 'bg-slate-700 hover:bg-slate-600 text-white'
@@ -1967,7 +2066,11 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                   Cancelar
                 </button>
                 <button
-                  onClick={handleSaveAnthropometric}
+                  onClick={async () => {
+                    await handleSaveAnthropometric()
+                    setShowAnthropometricListModal(false)
+                    setShowAnthropometricModal(false)
+                  }}
                   disabled={savingAnthropometric}
                   className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-800 text-white rounded-lg font-semibold hover:from-primary-700 hover:to-primary-900 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >

@@ -3,8 +3,27 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore'
 import TopBanner from '../components/TopBanner'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+import { Bar } from 'react-chartjs-2'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+)
 
 interface ProgressData {
   dayIndex: number
@@ -27,6 +46,13 @@ const ProgressChartsPage = () => {
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'completed' | 'time' | 'progress'>('all')
+  const [feedbackData, setFeedbackData] = useState<Array<{
+    date: Date
+    rpe: number
+    mood: number
+  }>>([])
+  const [chartFilterDateFrom, setChartFilterDateFrom] = useState('')
+  const [chartFilterDateTo, setChartFilterDateTo] = useState('')
 
   useEffect(() => {
     if (!clientId || !isCoach) {
@@ -86,6 +112,50 @@ const ProgressChartsPage = () => {
 
     loadProgress()
   }, [clientId, isCoach, navigate])
+
+  // Cargar datos de feedback diario
+  useEffect(() => {
+    if (!clientId || !isCoach) return
+
+    const loadFeedback = async () => {
+      try {
+        const feedbackRef = collection(db, 'dailyFeedback')
+        const q = query(
+          feedbackRef,
+          where('clientId', '==', clientId),
+          orderBy('date', 'asc')
+        )
+        const snapshot = await getDocs(q)
+        
+        const feedbackList: Array<{
+          date: Date
+          rpe: number
+          mood: number
+        }> = []
+
+        snapshot.forEach((doc) => {
+          const data = doc.data()
+          const date = data.date?.toDate 
+            ? data.date.toDate() 
+            : data.date 
+            ? new Date(data.date) 
+            : new Date()
+          
+          feedbackList.push({
+            date,
+            rpe: data.rpe || 0,
+            mood: data.mood || 0
+          })
+        })
+
+        setFeedbackData(feedbackList)
+      } catch (error) {
+        console.error('Error loading feedback data:', error)
+      }
+    }
+
+    loadFeedback()
+  }, [clientId, isCoach])
 
   const filteredData = progressData.filter(item => {
     // Filtro por fecha
@@ -516,43 +586,405 @@ const ProgressChartsPage = () => {
               </div>
             )}
 
-            {/* Gráfico de Barras Simple */}
-            {filteredData.length > 0 && (
-              <div className="mt-8">
-                <h2 className={`text-lg sm:text-xl font-bold mb-3 sm:mb-4 ${
+            {/* Progreso Visual - Gráfico de Barras RPE y Mood */}
+            {feedbackData.length > 0 && (
+              <div className={`rounded-xl p-4 sm:p-6 shadow-lg mb-6 ${
+                theme === 'dark' 
+                  ? 'bg-slate-800/80 border border-slate-700' 
+                  : 'bg-white border border-gray-200'
+              }`}>
+                <h2 className={`text-lg sm:text-xl font-bold mb-4 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  Progreso Visual
+                  Progreso Visual - Sensación de Esfuerzo y Estado de Ánimo
                 </h2>
-                <div className="space-y-2">
-                  {filteredData.slice(-10).map((item, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <div className={`w-16 text-sm font-semibold ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        Día {item.dayIndex}
-                      </div>
-                      <div className="flex-1">
-                        <div className={`w-full h-6 rounded-full overflow-hidden ${
-                          theme === 'dark' ? 'bg-slate-700' : 'bg-gray-300'
-                        }`}>
-                          <div
-                            className={`h-full transition-all ${
-                              item.progress === 100 
-                                ? 'bg-green-500' 
-                                : 'bg-primary-600'
-                            }`}
-                            style={{ width: `${item.progress}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className={`w-20 text-sm text-right ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        {Math.round(item.progress)}%
-                      </div>
+                
+                {/* Filtros de fecha para el gráfico */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className={`block text-sm font-semibold mb-2 ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                    }`}>
+                      Desde
+                    </label>
+                    <input
+                      type="date"
+                      value={chartFilterDateFrom}
+                      onChange={(e) => setChartFilterDateFrom(e.target.value)}
+                      className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-white'
+                          : 'bg-gray-50 border-gray-300 text-gray-900'
+                      } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-semibold mb-2 ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                    }`}>
+                      Hasta
+                    </label>
+                    <input
+                      type="date"
+                      value={chartFilterDateTo}
+                      onChange={(e) => setChartFilterDateTo(e.target.value)}
+                      className={`w-full px-4 py-2 rounded-lg border transition-colors ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-white'
+                          : 'bg-gray-50 border-gray-300 text-gray-900'
+                      } focus:outline-none focus:ring-2 focus:ring-primary-500`}
+                    />
+                  </div>
+                </div>
+
+                {/* Gráfico de barras */}
+                <div className="h-64 sm:h-80">
+                  <Bar
+                    data={{
+                      labels: (() => {
+                        let filtered = feedbackData
+                        if (chartFilterDateFrom) {
+                          const fromDate = new Date(chartFilterDateFrom)
+                          filtered = filtered.filter(item => {
+                            const itemDate = new Date(item.date)
+                            itemDate.setHours(0, 0, 0, 0)
+                            return itemDate >= fromDate
+                          })
+                        }
+                        if (chartFilterDateTo) {
+                          const toDate = new Date(chartFilterDateTo)
+                          toDate.setHours(23, 59, 59, 999)
+                          filtered = filtered.filter(item => {
+                            const itemDate = new Date(item.date)
+                            return itemDate <= toDate
+                          })
+                        }
+                        return filtered.map(item => {
+                          const date = new Date(item.date)
+                          return date.toLocaleDateString('es-ES', { 
+                            day: '2-digit', 
+                            month: 'short' 
+                          })
+                        })
+                      })(),
+                      datasets: [
+                        {
+                          label: 'Sensación de Esfuerzo (RPE)',
+                          data: (() => {
+                            let filtered = feedbackData
+                            if (chartFilterDateFrom) {
+                              const fromDate = new Date(chartFilterDateFrom)
+                              filtered = filtered.filter(item => {
+                                const itemDate = new Date(item.date)
+                                itemDate.setHours(0, 0, 0, 0)
+                                return itemDate >= fromDate
+                              })
+                            }
+                            if (chartFilterDateTo) {
+                              const toDate = new Date(chartFilterDateTo)
+                              toDate.setHours(23, 59, 59, 999)
+                              filtered = filtered.filter(item => {
+                                const itemDate = new Date(item.date)
+                                return itemDate <= toDate
+                              })
+                            }
+                            return filtered.map(item => item.rpe)
+                          })(),
+                          backgroundColor: theme === 'dark' 
+                            ? 'rgba(59, 130, 246, 0.8)' 
+                            : 'rgba(37, 99, 235, 0.8)',
+                          borderColor: theme === 'dark' 
+                            ? 'rgb(59, 130, 246)' 
+                            : 'rgb(37, 99, 235)',
+                          borderWidth: 1,
+                          yAxisID: 'y',
+                        },
+                        {
+                          label: 'Estado de Ánimo',
+                          data: (() => {
+                            let filtered = feedbackData
+                            if (chartFilterDateFrom) {
+                              const fromDate = new Date(chartFilterDateFrom)
+                              filtered = filtered.filter(item => {
+                                const itemDate = new Date(item.date)
+                                itemDate.setHours(0, 0, 0, 0)
+                                return itemDate >= fromDate
+                              })
+                            }
+                            if (chartFilterDateTo) {
+                              const toDate = new Date(chartFilterDateTo)
+                              toDate.setHours(23, 59, 59, 999)
+                              filtered = filtered.filter(item => {
+                                const itemDate = new Date(item.date)
+                                return itemDate <= toDate
+                              })
+                            }
+                            return filtered.map(item => item.mood * 2) // Escalar mood (1-5) a (2-10) para mejor visualización
+                          })(),
+                          backgroundColor: theme === 'dark' 
+                            ? 'rgba(16, 185, 129, 0.8)' 
+                            : 'rgba(5, 150, 105, 0.8)',
+                          borderColor: theme === 'dark' 
+                            ? 'rgb(16, 185, 129)' 
+                            : 'rgb(5, 150, 105)',
+                          borderWidth: 1,
+                          yAxisID: 'y1',
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: true,
+                          position: 'top',
+                          labels: {
+                            color: theme === 'dark' ? '#e2e8f0' : '#374151',
+                          },
+                        },
+                        tooltip: {
+                          backgroundColor: theme === 'dark' 
+                            ? 'rgba(30, 41, 59, 0.95)' 
+                            : 'rgba(255, 255, 255, 0.95)',
+                          titleColor: theme === 'dark' ? '#fff' : '#111827',
+                          bodyColor: theme === 'dark' ? '#e2e8f0' : '#374151',
+                          borderColor: theme === 'dark' ? '#475569' : '#e5e7eb',
+                          borderWidth: 1,
+                          callbacks: {
+                            label: function(context) {
+                              if (context.datasetIndex === 1) {
+                                // Para mood, mostrar el valor original (1-5) en lugar del escalado
+                                return `Estado de Ánimo: ${context.parsed.y / 2}`
+                              }
+                              return `${context.dataset.label}: ${context.parsed.y}`
+                            }
+                          }
+                        },
+                      },
+                      scales: {
+                        y: {
+                          type: 'linear',
+                          position: 'left',
+                          beginAtZero: true,
+                          max: 10,
+                          title: {
+                            display: true,
+                            text: 'RPE (1-10)',
+                            color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                          },
+                          ticks: {
+                            color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                          },
+                          grid: {
+                            color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                          },
+                        },
+                        y1: {
+                          type: 'linear',
+                          position: 'right',
+                          beginAtZero: true,
+                          max: 10,
+                          title: {
+                            display: true,
+                            text: 'Ánimo (1-5)',
+                            color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                          },
+                          ticks: {
+                            color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                            stepSize: 2,
+                            callback: function(value) {
+                              return (value / 2).toString() // Mostrar valores 1-5 en lugar de 2-10
+                            }
+                          },
+                          grid: {
+                            drawOnChartArea: false,
+                          },
+                        },
+                        x: {
+                          ticks: {
+                            color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                            maxRotation: 45,
+                            minRotation: 45,
+                          },
+                          grid: {
+                            color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Gráficas de Feedback Diario */}
+            {feedbackData.length > 0 && (
+              <div className="mt-8 sm:mt-12">
+                <h2 className={`text-xl sm:text-2xl font-bold mb-6 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Evolución de Feedback Diario
+                </h2>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  {/* Gráfica de RPE */}
+                  <div className={`rounded-xl p-4 sm:p-6 ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800/80 border border-slate-700' 
+                      : 'bg-white border border-gray-200'
+                  }`}>
+                    <h3 className={`text-base sm:text-lg font-semibold mb-4 ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Sensación de Esfuerzo (RPE)
+                    </h3>
+                    <div className="h-64 sm:h-80">
+                      <Bar
+                        data={{
+                          labels: feedbackData.map(item => {
+                            const date = new Date(item.date)
+                            return date.toLocaleDateString('es-ES', { 
+                              day: '2-digit', 
+                              month: 'short' 
+                            })
+                          }),
+                          datasets: [
+                            {
+                              label: 'RPE',
+                              data: feedbackData.map(item => item.rpe),
+                              backgroundColor: theme === 'dark' 
+                                ? 'rgba(59, 130, 246, 0.8)' 
+                                : 'rgba(37, 99, 235, 0.8)',
+                              borderColor: theme === 'dark' 
+                                ? 'rgb(59, 130, 246)' 
+                                : 'rgb(37, 99, 235)',
+                              borderWidth: 1,
+                            },
+                          ],
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: false,
+                            },
+                            tooltip: {
+                              backgroundColor: theme === 'dark' 
+                                ? 'rgba(30, 41, 59, 0.95)' 
+                                : 'rgba(255, 255, 255, 0.95)',
+                              titleColor: theme === 'dark' ? '#fff' : '#111827',
+                              bodyColor: theme === 'dark' ? '#e2e8f0' : '#374151',
+                              borderColor: theme === 'dark' ? '#475569' : '#e5e7eb',
+                              borderWidth: 1,
+                            },
+                          },
+                          scales: {
+                            y: {
+                              beginAtZero: true,
+                              max: 10,
+                              ticks: {
+                                color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                              },
+                              grid: {
+                                color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                              },
+                            },
+                            x: {
+                              ticks: {
+                                color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                                maxRotation: 45,
+                                minRotation: 45,
+                              },
+                              grid: {
+                                color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                              },
+                            },
+                          },
+                        }}
+                      />
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Gráfica de Estado de Ánimo */}
+                  <div className={`rounded-xl p-4 sm:p-6 ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800/80 border border-slate-700' 
+                      : 'bg-white border border-gray-200'
+                  }`}>
+                    <h3 className={`text-base sm:text-lg font-semibold mb-4 ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Estado de Ánimo
+                    </h3>
+                    <div className="h-64 sm:h-80">
+                      <Bar
+                        data={{
+                          labels: feedbackData.map(item => {
+                            const date = new Date(item.date)
+                            return date.toLocaleDateString('es-ES', { 
+                              day: '2-digit', 
+                              month: 'short' 
+                            })
+                          }),
+                          datasets: [
+                            {
+                              label: 'Ánimo',
+                              data: feedbackData.map(item => item.mood),
+                              backgroundColor: theme === 'dark' 
+                                ? 'rgba(34, 197, 94, 0.8)' 
+                                : 'rgba(22, 163, 74, 0.8)',
+                              borderColor: theme === 'dark' 
+                                ? 'rgb(34, 197, 94)' 
+                                : 'rgb(22, 163, 74)',
+                              borderWidth: 1,
+                            },
+                          ],
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: false,
+                            },
+                            tooltip: {
+                              backgroundColor: theme === 'dark' 
+                                ? 'rgba(30, 41, 59, 0.95)' 
+                                : 'rgba(255, 255, 255, 0.95)',
+                              titleColor: theme === 'dark' ? '#fff' : '#111827',
+                              bodyColor: theme === 'dark' ? '#e2e8f0' : '#374151',
+                              borderColor: theme === 'dark' ? '#475569' : '#e5e7eb',
+                              borderWidth: 1,
+                            },
+                          },
+                          scales: {
+                            y: {
+                              beginAtZero: true,
+                              max: 5,
+                              ticks: {
+                                color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                              },
+                              grid: {
+                                color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                              },
+                            },
+                            x: {
+                              ticks: {
+                                color: theme === 'dark' ? '#94a3b8' : '#6b7280',
+                                maxRotation: 45,
+                                minRotation: 45,
+                              },
+                              grid: {
+                                color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(107, 114, 128, 0.1)',
+                              },
+                            },
+                          },
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
-import { collection, getDocs, doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, doc, setDoc, serverTimestamp, query, where } from 'firebase/firestore'
 import { Workout, Exercise, Section } from '../data/workouts'
 import { ExerciseData } from '../data/exercises'
 import ExerciseSelector from '../components/ExerciseSelector'
@@ -15,7 +15,6 @@ interface Client {
   name: string
   email: string
   createdAt?: any
-  clientCategory?: 'new' | 'old'
 }
 
 const CreateWorkoutPage = () => {
@@ -40,7 +39,6 @@ const CreateWorkoutPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [addedExercisesCount, setAddedExercisesCount] = useState(0)
   const [showClientModal, setShowClientModal] = useState(false)
-  const [clientModalType, setClientModalType] = useState<'new' | 'old' | null>(null)
 
   // Cargar lista de clientes
   useEffect(() => {
@@ -52,7 +50,9 @@ const CreateWorkoutPage = () => {
     const loadClients = async () => {
       try {
         const clientsRef = collection(db, 'clients')
-        const snapshot = await getDocs(clientsRef)
+        // Filtrar solo clientes activos con pago
+        const q = query(clientsRef, where('status', '==', 'active'))
+        const snapshot = await getDocs(q)
         const clientsList: Client[] = []
         
         snapshot.forEach((doc) => {
@@ -65,8 +65,7 @@ const CreateWorkoutPage = () => {
               id: doc.id,
               name: data.name || '',
               email: data.email || '',
-              createdAt: data.createdAt,
-              clientCategory: data.clientCategory
+              createdAt: data.createdAt
             })
           }
         })
@@ -151,35 +150,6 @@ const CreateWorkoutPage = () => {
     })
   }
 
-  // Separar clientes en nuevos y antiguos (misma lógica que HomePage)
-  const getNewClients = () => {
-    return clients.filter(client => {
-      // Si tiene categoría manual, usar esa
-      if (client.clientCategory === 'new') return true
-      if (client.clientCategory === 'old') return false
-      // Si no tiene categoría manual, usar criterio de 30 días
-      if (!client.createdAt) return false
-      const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      return createdAt >= thirtyDaysAgo
-    })
-  }
-
-  const getOldClients = () => {
-    return clients.filter(client => {
-      // Si tiene categoría manual, usar esa
-      if (client.clientCategory === 'old') return true
-      if (client.clientCategory === 'new') return false
-      // Si no tiene categoría manual, usar criterio de 30 días
-      if (!client.createdAt) return true
-      const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      return createdAt < thirtyDaysAgo
-    })
-  }
-
-  const newClients = getNewClients()
-  const oldClients = getOldClients()
 
   const handleSave = async () => {
     if (!workoutName.trim()) {
@@ -510,40 +480,21 @@ const CreateWorkoutPage = () => {
                     </p>
                   </div>
                 )}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setClientModalType('new')
-                      setShowClientModal(true)
-                    }}
-                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors flex items-center justify-center gap-2 ${
-                      theme === 'dark'
-                        ? 'border-slate-600 hover:border-slate-500 text-slate-300 hover:bg-slate-600'
-                        : 'border-gray-300 hover:border-gray-400 text-gray-700 hover:bg-gray-100'
-                    } font-semibold`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Nuevos ({newClients.length})
-                  </button>
-                  <button
-                    onClick={() => {
-                      setClientModalType('old')
-                      setShowClientModal(true)
-                    }}
-                    className={`flex-1 px-4 py-3 rounded-lg border-2 transition-colors flex items-center justify-center gap-2 ${
-                      theme === 'dark'
-                        ? 'border-slate-600 hover:border-slate-500 text-slate-300 hover:bg-slate-600'
-                        : 'border-gray-300 hover:border-gray-400 text-gray-700 hover:bg-gray-100'
-                    } font-semibold`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Antiguos ({oldClients.length})
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setShowClientModal(true)
+                  }}
+                  className={`w-full px-4 py-3 rounded-lg border-2 transition-colors flex items-center justify-center gap-2 ${
+                    theme === 'dark'
+                      ? 'border-slate-600 hover:border-slate-500 text-slate-300 hover:bg-slate-600'
+                      : 'border-gray-300 hover:border-gray-400 text-gray-700 hover:bg-gray-100'
+                  } font-semibold`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Seleccionar Clientes ({clients.length})
+                </button>
               </div>
 
               {/* Botones de Acción */}
@@ -591,7 +542,7 @@ const CreateWorkoutPage = () => {
       )}
 
       {/* Modal de Selección de Clientes */}
-      {showClientModal && clientModalType && (
+      {showClientModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -605,13 +556,11 @@ const CreateWorkoutPage = () => {
               <h3 className={`text-xl font-bold ${
                 theme === 'dark' ? 'text-white' : 'text-gray-900'
               }`}>
-                {clientModalType === 'new' ? 'Clientes Nuevos' : 'Clientes Antiguos'} 
-                ({clientModalType === 'new' ? newClients.length : oldClients.length})
+                Seleccionar Clientes ({clients.length})
               </h3>
               <button
                 onClick={() => {
                   setShowClientModal(false)
-                  setClientModalType(null)
                 }}
                 className={`p-2 rounded-lg transition-colors ${
                   theme === 'dark' 
@@ -626,7 +575,7 @@ const CreateWorkoutPage = () => {
             </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {(clientModalType === 'new' ? newClients : oldClients).map((client) => (
+              {clients.map((client) => (
                 <label
                   key={client.id}
                   className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
@@ -659,11 +608,11 @@ const CreateWorkoutPage = () => {
                   </div>
                 </label>
               ))}
-              {(clientModalType === 'new' ? newClients : oldClients).length === 0 && (
+              {clients.length === 0 && (
                 <p className={`text-center py-8 text-sm ${
                   theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                 }`}>
-                  No hay {clientModalType === 'new' ? 'clientes nuevos' : 'clientes antiguos'} disponibles
+                  No hay clientes disponibles
                 </p>
               )}
             </div>
@@ -672,7 +621,6 @@ const CreateWorkoutPage = () => {
               <button
                 onClick={() => {
                   setShowClientModal(false)
-                  setClientModalType(null)
                 }}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                   theme === 'dark'

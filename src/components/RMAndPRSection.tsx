@@ -35,6 +35,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
   const [prs, setPrs] = useState<PRRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [dateFilter, setDateFilter] = useState<'all' | 'month' | '3months' | 'year'>('all')
   const [showRMForm, setShowRMForm] = useState(false)
   const [showPRForm, setShowPRForm] = useState(false)
   const [editingRMId, setEditingRMId] = useState<string | null>(null)
@@ -454,8 +455,76 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
     )
   }
 
+  // Función para filtrar registros por fecha
+  const filterByDate = (records: RMRecord[] | PRRecord[]): (RMRecord[] | PRRecord[]) => {
+    if (dateFilter === 'all') return records
+    
+    const now = new Date()
+    const cutoffDate = new Date()
+    
+    switch (dateFilter) {
+      case 'month':
+        cutoffDate.setMonth(now.getMonth() - 1)
+        break
+      case '3months':
+        cutoffDate.setMonth(now.getMonth() - 3)
+        break
+      case 'year':
+        cutoffDate.setFullYear(now.getFullYear() - 1)
+        break
+      default:
+        return records
+    }
+    
+    return records.filter(record => {
+      let recordDate: Date
+      if (record.date instanceof Date) {
+        recordDate = new Date(record.date)
+      } else if (typeof record.date === 'number') {
+        recordDate = new Date(record.date)
+      } else if (record.date && typeof record.date === 'object' && 'toDate' in record.date) {
+        recordDate = (record.date as any).toDate()
+      } else {
+        return false
+      }
+      return recordDate >= cutoffDate
+    })
+  }
+
+  const filteredRMs = filterByDate(rms) as RMRecord[]
+  const filteredPRs = filterByDate(prs) as PRRecord[]
+
   return (
     <div className="space-y-6">
+      {/* Filtro por fecha */}
+      <div className={`rounded-xl p-4 shadow-lg ${
+        theme === 'dark' 
+          ? 'bg-slate-800/50 backdrop-blur-sm' 
+          : 'bg-white/80 backdrop-blur-sm'
+      }`}>
+        <div className="flex items-center gap-4 flex-wrap">
+          <label className={`text-sm font-semibold ${
+            theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+          }`}>
+            Filtrar por fecha:
+          </label>
+          <select
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value as 'all' | 'month' | '3months' | 'year')}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+              theme === 'dark'
+                ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <option value="all">Todo</option>
+            <option value="month">Último mes</option>
+            <option value="3months">Últimos 3 meses</option>
+            <option value="year">Último año</option>
+          </select>
+        </div>
+      </div>
+
       {/* RM Section */}
       <div className={`rounded-xl p-6 shadow-lg ${
         theme === 'dark' 
@@ -466,7 +535,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
           <h3 className={`text-xl font-bold ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
-            RM (Repetición Máxima)
+            RM (Repetición Máxima) {filteredRMs.length !== rms.length && `(${filteredRMs.length} de ${rms.length})`}
           </h3>
           {isCurrentUser && (
             <button
@@ -540,13 +609,13 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         )}
 
         {/* Lista de RMs */}
-        {rms.length === 0 ? (
+        {filteredRMs.length === 0 ? (
           <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-            No hay registros de RM aún
+            {rms.length === 0 ? 'No hay registros de RM aún' : 'No hay registros de RM en el período seleccionado'}
           </p>
         ) : (
           <div className="space-y-2">
-            {rms.map((rm) => (
+            {filteredRMs.map((rm) => (
               <div
                 key={rm.id}
                 className={`p-3 rounded-lg ${
@@ -632,7 +701,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
           <h3 className={`text-xl font-bold ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
-            PR (Récord Personal)
+            PR (Récord Personal) {filteredPRs.length !== prs.length && `(${filteredPRs.length} de ${prs.length})`}
           </h3>
           {isCurrentUser && (
             <button
@@ -706,13 +775,13 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         )}
 
         {/* Lista de PRs */}
-        {prs.length === 0 ? (
+        {filteredPRs.length === 0 ? (
           <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-            No hay registros de PR aún
+            {prs.length === 0 ? 'No hay registros de PR aún' : 'No hay registros de PR en el período seleccionado'}
           </p>
         ) : (
           <div className="space-y-2">
-            {prs.map((pr) => (
+            {filteredPRs.map((pr) => (
               <div
                 key={pr.id}
                 className={`p-3 rounded-lg ${

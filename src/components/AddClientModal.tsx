@@ -16,21 +16,11 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
   const { theme } = useTheme()
   const { t } = useLanguage()
   const [formData, setFormData] = useState({
-    firstName: '',
-    secondName: '',
-    firstLastName: '',
-    secondLastName: '',
+    fullName: '',
     email: '',
-    plan: 'Plan Mensual - Nivel 2',
     phone: '',
     password: ''
   })
-
-  // Función helper para combinar nombres
-  const combineName = (firstName: string, secondName: string, firstLastName: string, secondLastName: string): string => {
-    const parts = [firstName, secondName, firstLastName, secondLastName].filter(Boolean)
-    return parts.join(' ')
-  }
   const [useCustomPassword, setUseCustomPassword] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -87,12 +77,10 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
       const createdClientId = userCredential.user.uid
 
       // Guardar información del cliente en Firestore
-      const fullName = combineName(formData.firstName, formData.secondName, formData.firstLastName, formData.secondLastName)
       await setDoc(doc(db, 'clients', createdClientId), {
-        name: fullName,
+        name: formData.fullName.trim(),
         email: formData.email.toLowerCase(),
         phone: formData.phone || '',
-        plan: formData.plan,
         status: 'active',
         createdAt: serverTimestamp(),
         role: 'client',
@@ -148,12 +136,8 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
 
   const handleClose = () => {
     setFormData({
-      firstName: '',
-      secondName: '',
-      firstLastName: '',
-      secondLastName: '',
+      fullName: '',
       email: '',
-      plan: 'Plan Mensual - Nivel 2',
       phone: '',
       password: ''
     })
@@ -228,17 +212,17 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                   <form onSubmit={handleSubmit} className="flex flex-col">
                     {/* Contenedor con scroll para los campos */}
                     <div className="overflow-y-auto max-h-[75vh] p-4 space-y-4">
-                      {/* Primer Nombre */}
+                      {/* Nombre Completo */}
                     <div>
                       <label className={`block text-sm font-semibold mb-2 ${
                         theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
                       }`}>
-                        Primer Nombre *
+                        Nombre Completo *
                       </label>
                       <input
                         type="text"
-                        name="firstName"
-                        value={formData.firstName}
+                        name="fullName"
+                        value={formData.fullName}
                         onChange={handleInputChange}
                         required
                         className={`w-full px-4 py-3 rounded-lg border transition-colors ${
@@ -246,71 +230,7 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                             ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
                             : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
                         } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                        placeholder="Ej: Juan"
-                      />
-                    </div>
-
-                    {/* Segundo Nombre */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        Segundo Nombre
-                      </label>
-                      <input
-                        type="text"
-                        name="secondName"
-                        value={formData.secondName}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
-                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
-                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                        placeholder="Ej: Carlos (opcional)"
-                      />
-                    </div>
-
-                    {/* Primer Apellido */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        Primer Apellido *
-                      </label>
-                      <input
-                        type="text"
-                        name="firstLastName"
-                        value={formData.firstLastName}
-                        onChange={handleInputChange}
-                        required
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
-                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
-                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                        placeholder="Ej: Pérez"
-                      />
-                    </div>
-
-                    {/* Segundo Apellido */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        Segundo Apellido
-                      </label>
-                      <input
-                        type="text"
-                        name="secondLastName"
-                        value={formData.secondLastName}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500'
-                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500'
-                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                        placeholder="Ej: González (opcional)"
+                        placeholder="Ej: Juan Carlos Pérez González"
                       />
                     </div>
 
@@ -429,31 +349,6 @@ const AddClientModal = ({ isOpen, onClose, onSuccess }: AddClientModalProps) => 
                           {t('modal.addClient.autoPasswordHint')}
                         </div>
                       )}
-                    </div>
-
-                    {/* Plan */}
-                    <div>
-                      <label className={`block text-sm font-semibold mb-2 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        {t('modal.addClient.plan')} *
-                      </label>
-                      <select
-                        name="plan"
-                        value={formData.plan}
-                        onChange={handleInputChange}
-                        required
-                        className={`w-full px-4 py-3 rounded-lg border transition-colors ${
-                          theme === 'dark'
-                            ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500'
-                            : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-primary-500'
-                        } focus:outline-none focus:ring-2 focus:ring-primary-500/20`}
-                      >
-                        <option value="Plan Mensual - Nivel 1">Plan Mensual - Nivel 1</option>
-                        <option value="Plan Mensual - Nivel 2">Plan Mensual - Nivel 2</option>
-                        <option value="Plan Mensual - Nivel 3">Plan Mensual - Nivel 3</option>
-                        <option value="Plan Personalizado">Plan Personalizado</option>
-                      </select>
                     </div>
 
                       {/* Error message */}

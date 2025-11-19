@@ -96,6 +96,47 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // Regla para medidas antropométricas de clientes
+    match /clients/{clientId}/anthropometric/{measureId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir escritura solo a admins
+      allow write: if isAdmin();
+    }
+    
+    // Regla para registros diarios de carga y esfuerzo
+    match /clients/{clientId}/dailyRecords/{recordId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir escritura:
+      // - Si es admin (puede ver/editar cualquier registro)
+      // - O si el cliente está actualizando sus propios registros
+      allow write: if request.auth != null && (
+        isAdmin() || 
+        request.auth.uid == clientId
+      );
+    }
+    
+    // Regla para feedback diario
+    match /dailyFeedback/{feedbackId} {
+      // Permitir lectura a usuarios autenticados
+      allow read: if request.auth != null;
+      
+      // Permitir escritura:
+      // - Si es admin (puede ver/editar cualquier feedback)
+      // - O si el cliente está creando/actualizando su propio feedback
+      //   (permitimos a cualquier usuario autenticado crear feedback, ya que el clientId
+      //    puede no coincidir con el UID si los clientes se identifican por email)
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && (
+        isAdmin() || 
+        resource.data.clientId == request.resource.data.clientId
+      );
+      allow delete: if isAdmin();
+    }
+    
     // Regla por defecto: denegar todo lo demás
     match /{document=**} {
       allow read, write: if false;

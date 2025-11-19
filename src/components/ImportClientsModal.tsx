@@ -14,8 +14,9 @@ interface ImportClientsModalProps {
 interface CSVRow {
   cedula: string
   nombreCompleto: string
-  apellido: string
-  celular: string
+  correo: string
+  rh: string
+  eps: string
 }
 
 const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalProps) => {
@@ -33,23 +34,27 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
     if (lines.length === 0) return []
 
     // Saltar la primera línea si es encabezado
-    const startIndex = lines[0].toLowerCase().includes('cédula') || lines[0].toLowerCase().includes('cedula') ? 1 : 0
+    const headerLine = lines[0].toLowerCase()
+    const startIndex = (headerLine.includes('cédula') || headerLine.includes('cedula') || 
+                        headerLine.includes('nombre') || headerLine.includes('correo') || 
+                        headerLine.includes('rh') || headerLine.includes('eps')) ? 1 : 0
     
     return lines.slice(startIndex).map(line => {
       // Dividir por comas, pero manejar comillas
       const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
       
-      if (values.length < 4) {
-        throw new Error(`Línea inválida: ${line}. Se esperan 4 columnas: cédula, nombre completo, apellido, celular`)
+      if (values.length < 5) {
+        throw new Error(`Línea inválida: ${line}. Se esperan 5 columnas: CEDULA, NOMBRE COMPLETO, CORREO, RH, EPS`)
       }
 
       return {
         cedula: values[0] || '',
         nombreCompleto: values[1] || '',
-        apellido: values[2] || '',
-        celular: values[3] || ''
+        correo: values[2] || '',
+        rh: values[3] || '',
+        eps: values[4] || ''
       }
-    }).filter(row => row.cedula && row.nombreCompleto) // Filtrar filas vacías
+    }).filter(row => row.cedula && row.nombreCompleto && row.correo) // Filtrar filas vacías
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,21 +82,6 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
     }
   }
 
-  const generateEmail = (nombreCompleto: string, apellido: string, cedula: string): string => {
-    // Crear email único basado en nombre y cédula
-    const nombreLimpio = nombreCompleto.toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '.')
-      .substring(0, 15)
-    const apellidoLimpio = apellido.toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/\s+/g, '.')
-      .substring(0, 10)
-    const cedulaLimpia = cedula.replace(/\D/g, '').substring(0, 4)
-    return `${nombreLimpio}.${apellidoLimpio}${cedulaLimpia}@temporal.com`
-  }
 
   const generatePassword = (): string => {
     return Math.random().toString(36).slice(-12) + 
@@ -134,14 +124,18 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
       for (let i = 0; i < preview.length; i++) {
         const row = preview[i]
         try {
-          const email = generateEmail(row.nombreCompleto, row.apellido, row.cedula)
+          // Usar el correo directamente del CSV
+          const email = row.correo.trim().toLowerCase()
+          if (!email || !email.includes('@')) {
+            throw new Error('Correo inválido o faltante')
+          }
+          
           const password = generatePassword()
-          const fullName = `${row.nombreCompleto} ${row.apellido}`.trim()
 
           // Crear usuario directamente
           const userCredential = await createUserWithEmailAndPassword(
             auth,
-            email.toLowerCase(),
+            email,
             password
           )
 
@@ -149,9 +143,11 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
 
           // Guardar información del cliente en Firestore
           await setDoc(doc(db, 'clients', createdClientId), {
-            name: fullName,
-            email: email.toLowerCase(),
-            phone: row.celular || '',
+            name: row.nombreCompleto.trim(),
+            email: email,
+            cedula: row.cedula || '',
+            rh: row.rh || '',
+            eps: row.eps || '',
             plan: 'Plan Mensual - Nivel 2',
             status: 'active',
             createdAt: serverTimestamp(),
@@ -164,6 +160,8 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
           errorCount++
           if (err.code === 'auth/email-already-in-use') {
             errors.push(`${row.nombreCompleto}: Email ya está registrado`)
+          } else if (err.code === 'auth/invalid-email') {
+            errors.push(`${row.nombreCompleto}: Correo electrónico inválido`)
           } else {
             errors.push(`${row.nombreCompleto}: ${err.message || 'Error desconocido'}`)
           }
@@ -291,7 +289,7 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
                     <p className={`text-xs mt-2 ${
                       theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                     }`}>
-                      Formato esperado: cédula, nombre completo, apellido, número de celular
+                      Formato esperado: CEDULA, NOMBRE COMPLETO, CORREO, RH, EPS
                     </p>
                   </div>
 
@@ -315,13 +313,16 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
                               }`}>Cédula</th>
                               <th className={`px-3 py-2 text-left font-semibold ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
-                              }`}>Nombre</th>
+                              }`}>Nombre Completo</th>
                               <th className={`px-3 py-2 text-left font-semibold ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
-                              }`}>Apellido</th>
+                              }`}>Correo</th>
                               <th className={`px-3 py-2 text-left font-semibold ${
                                 theme === 'dark' ? 'text-white' : 'text-gray-900'
-                              }`}>Celular</th>
+                              }`}>RH</th>
+                              <th className={`px-3 py-2 text-left font-semibold ${
+                                theme === 'dark' ? 'text-white' : 'text-gray-900'
+                              }`}>EPS</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -337,10 +338,13 @@ const ImportClientsModal = ({ isOpen, onClose, onSuccess }: ImportClientsModalPr
                                 }`}>{row.nombreCompleto}</td>
                                 <td className={`px-3 py-2 ${
                                   theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>{row.apellido}</td>
+                                }`}>{row.correo}</td>
                                 <td className={`px-3 py-2 ${
                                   theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                                }`}>{row.celular}</td>
+                                }`}>{row.rh}</td>
+                                <td className={`px-3 py-2 ${
+                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                                }`}>{row.eps}</td>
                               </tr>
                             ))}
                           </tbody>

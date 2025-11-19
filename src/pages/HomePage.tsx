@@ -10,9 +10,10 @@ import ImportClientsModal from '../components/ImportClientsModal'
 import RMAndPRModal from '../components/RMAndPRModal'
 import LoadAndEffortModal from '../components/LoadAndEffortModal'
 import CoachContactModal from '../components/CoachContactModal'
+import DailyFeedbackModal from '../components/DailyFeedbackModal'
 import { db } from '../firebaseConfig'
-import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore'
-import ProgressTracker from '../components/ProgressTracker'
+import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc, query, where, orderBy, Timestamp } from 'firebase/firestore'
+import { calculateTimeActive } from '../utils/timeUtils'
 
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
 interface Client {
@@ -28,13 +29,17 @@ interface Client {
   subscriptionEndDate?: any
   profilePhoto?: string | null
   avatar?: string | null
-  clientCategory?: 'new' | 'old'
   progress?: {
     monthlyProgress: number
     completedDays: number
     totalDays: number
     averageWorkoutTime?: number // en segundos
   }
+  latestRM?: {
+    exercise: string
+    weight: string
+    date?: any
+  } | null
 }
 
 const HomePage = () => {
@@ -64,12 +69,14 @@ const HomePage = () => {
   const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
   const [showLoadAndEffortModal, setShowLoadAndEffortModal] = useState(false)
   const [showCoachContactModal, setShowCoachContactModal] = useState(false)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [activeCategory, setActiveCategory] = useState<'new' | 'old' | null>(null)
-  const [isAllClientsCollapsed, setIsAllClientsCollapsed] = useState(false)
-  const [sortBy, setSortBy] = useState<'name' | 'subscription' | 'payment' | 'none'>('none')
+  const viewMode: 'grid' | 'list' = 'grid' // Vista fija en grid
+  const [sortBy, setSortBy] = useState<'name' | 'subscription' | 'payment' | 'createdAt' | 'none'>('none')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all')
+  const [rmFilter, setRmFilter] = useState<boolean | null>(null)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [hasFeedbackToday, setHasFeedbackToday] = useState(false)
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -108,14 +115,58 @@ const HomePage = () => {
         return !adminEmails.includes(email) && email !== ''
       }
 
+      // Función para construir query dinámica según filtros
+      const buildQuery = (clientsRef: any) => {
+        let q: any = clientsRef
+        
+        // Aplicar filtro de estado
+        if (statusFilter !== 'all') {
+          q = query(q, where('status', '==', statusFilter))
+        }
+        
+        // Aplicar ordenamiento
+        if (sortBy !== 'none') {
+          let orderField = 'name'
+          if (sortBy === 'createdAt') {
+            orderField = 'createdAt'
+          } else if (sortBy === 'subscription') {
+            orderField = 'subscriptionStartDate'
+          } else if (sortBy === 'payment') {
+            orderField = 'subscriptionEndDate'
+          }
+          q = query(q, orderBy(orderField, sortOrder))
+        } else {
+          // Ordenamiento por defecto: alfabético
+          q = query(q, orderBy('name', 'asc'))
+        }
+        
+        return q
+      }
+
+      // Función para verificar si un cliente tiene registros RM
+      const hasRMRecords = async (clientId: string): Promise<boolean> => {
+        try {
+          const recordsRef = doc(db, 'clients', clientId, 'records', 'rm_pr')
+          const recordsDoc = await getDoc(recordsRef)
+          if (recordsDoc.exists()) {
+            const data = recordsDoc.data()
+            return (data.rms && data.rms.length > 0) || false
+          }
+          return false
+        } catch (error) {
+          console.error(`Error checking RM records for ${clientId}:`, error)
+          return false
+        }
+      }
+
       // Cargar una vez inicialmente para mostrar datos rápido
       const loadClients = async () => {
         try {
           const clientsRef = collection(db, 'clients')
           
-          // Cargar todos los documentos y filtrar manualmente
-          // Esto asegura que incluya clientes antiguos sin el campo 'role'
-          const snapshot = await getDocs(clientsRef)
+          // Construir query dinámica
+          const q = buildQuery(clientsRef)
+          const snapshot = await getDocs(q)
           
           // Cargar progreso para cada cliente
           const clientsWithProgress = await Promise.all(
@@ -140,6 +191,32 @@ const HomePage = () => {
                   console.error(`Error loading progress for ${docSnapshot.id}:`, error)
                 }
 
+                // Cargar último RM
+                let latestRM = null
+                try {
+                  const recordsRef = doc(db, 'clients', docSnapshot.id, 'records', 'rm_pr')
+                  const recordsDoc = await getDoc(recordsRef)
+                  if (recordsDoc.exists()) {
+                    const recordsData = recordsDoc.data()
+                    const rms = recordsData.rms || []
+                    if (rms.length > 0) {
+                      // Obtener el RM más reciente
+                      const sortedRMs = [...rms].sort((a: any, b: any) => {
+                        const dateA = a.date?.toDate ? a.date.toDate() : (a.date ? new Date(a.date) : new Date(0))
+                        const dateB = b.date?.toDate ? b.date.toDate() : (b.date ? new Date(b.date) : new Date(0))
+                        return dateB.getTime() - dateA.getTime()
+                      })
+                      latestRM = {
+                        exercise: sortedRMs[0].exercise || '',
+                        weight: sortedRMs[0].weight || '',
+                        date: sortedRMs[0].date
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error(`Error loading RM for ${docSnapshot.id}:`, error)
+                }
+
               const client: Client = {
                 id: docSnapshot.id,
                 name: data.name || '',
@@ -153,8 +230,8 @@ const HomePage = () => {
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
                 profilePhoto: data.profilePhoto || null,
                 avatar: data.avatar || null,
-                clientCategory: data.clientCategory || undefined,
-                progress
+                progress,
+                latestRM
               }
                 return client
               }
@@ -162,7 +239,36 @@ const HomePage = () => {
             })
           )
 
-          const validClients = clientsWithProgress.filter((c): c is Client => c !== null)
+          let validClients = clientsWithProgress.filter((c): c is Client => c !== null)
+          
+          // Filtrar solo clientes con suscripción vigente (activos)
+          validClients = validClients.filter((client) => {
+            if (client.status !== 'active') return false
+            // Si no tiene subscriptionEndDate, está activo
+            if (!client.subscriptionEndDate) return true
+            // Si tiene subscriptionEndDate, verificar que sea en el futuro
+            const endDate = client.subscriptionEndDate?.toDate 
+              ? client.subscriptionEndDate.toDate() 
+              : client.subscriptionEndDate 
+              ? new Date(client.subscriptionEndDate) 
+              : null
+            if (!endDate) return true
+            return endDate >= new Date()
+          })
+          
+          // Aplicar filtro por RM si está activo
+          if (rmFilter !== null) {
+            const clientsWithRMCheck = await Promise.all(
+              validClients.map(async (client) => {
+                const hasRM = await hasRMRecords(client.id)
+                return { client, hasRM }
+              })
+            )
+            validClients = clientsWithRMCheck
+              .filter(({ hasRM }) => rmFilter === hasRM)
+              .map(({ client }) => client)
+          }
+          
           console.log(`Cargados ${validClients.length} clientes:`, validClients.map(c => c.email))
           setClients(validClients)
           setLoading(false)
@@ -177,7 +283,8 @@ const HomePage = () => {
 
       // Luego suscribirse para actualizaciones en tiempo real
       const clientsRef = collection(db, 'clients')
-      const unsubscribe = onSnapshot(clientsRef, async (snapshot) => {
+      const q = buildQuery(clientsRef)
+      const unsubscribe = onSnapshot(q, async (snapshot) => {
         // Cargar progreso para cada cliente
         const clientsWithProgress = await Promise.all(
           Array.from(snapshot.docs).map(async (docSnapshot) => {
@@ -201,6 +308,32 @@ const HomePage = () => {
                 console.error(`Error loading progress for ${docSnapshot.id}:`, error)
               }
 
+              // Cargar último RM
+              let latestRM = null
+              try {
+                const recordsRef = doc(db, 'clients', docSnapshot.id, 'records', 'rm_pr')
+                const recordsDoc = await getDoc(recordsRef)
+                if (recordsDoc.exists()) {
+                  const recordsData = recordsDoc.data()
+                  const rms = recordsData.rms || []
+                  if (rms.length > 0) {
+                    // Obtener el RM más reciente
+                    const sortedRMs = [...rms].sort((a: any, b: any) => {
+                      const dateA = a.date?.toDate ? a.date.toDate() : (a.date ? new Date(a.date) : new Date(0))
+                      const dateB = b.date?.toDate ? b.date.toDate() : (b.date ? new Date(b.date) : new Date(0))
+                      return dateB.getTime() - dateA.getTime()
+                    })
+                    latestRM = {
+                      exercise: sortedRMs[0].exercise || '',
+                      weight: sortedRMs[0].weight || '',
+                      date: sortedRMs[0].date
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error loading RM for ${docSnapshot.id}:`, error)
+              }
+
               const client: Client = {
                 id: docSnapshot.id,
                 name: data.name || '',
@@ -214,8 +347,8 @@ const HomePage = () => {
                 subscriptionEndDate: data.subscriptionEndDate || undefined,
                 profilePhoto: data.profilePhoto || null,
                 avatar: data.avatar || null,
-                clientCategory: data.clientCategory || undefined,
-                progress
+                progress,
+                latestRM
               }
               return client
             }
@@ -223,7 +356,36 @@ const HomePage = () => {
           })
         )
 
-        const validClients = clientsWithProgress.filter((c): c is Client => c !== null)
+        let validClients = clientsWithProgress.filter((c): c is Client => c !== null)
+        
+        // Filtrar solo clientes con suscripción vigente (activos)
+        validClients = validClients.filter((client) => {
+          if (client.status !== 'active') return false
+          // Si no tiene subscriptionEndDate, está activo
+          if (!client.subscriptionEndDate) return true
+          // Si tiene subscriptionEndDate, verificar que sea en el futuro
+          const endDate = client.subscriptionEndDate?.toDate 
+            ? client.subscriptionEndDate.toDate() 
+            : client.subscriptionEndDate 
+            ? new Date(client.subscriptionEndDate) 
+            : null
+          if (!endDate) return true
+          return endDate >= new Date()
+        })
+        
+        // Aplicar filtro por RM si está activo
+        if (rmFilter !== null) {
+          const clientsWithRMCheck = await Promise.all(
+            validClients.map(async (client) => {
+              const hasRM = await hasRMRecords(client.id)
+              return { client, hasRM }
+            })
+          )
+          validClients = clientsWithRMCheck
+            .filter(({ hasRM }) => rmFilter === hasRM)
+            .map(({ client }) => client)
+        }
+        
         console.log(`Actualización en tiempo real: ${validClients.length} clientes:`, validClients.map(c => c.email))
         setClients(validClients)
       }, (error) => {
@@ -271,35 +433,53 @@ const HomePage = () => {
 
       return () => unsubscribe()
     }
-  }, [user, isCoach])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isCoach, statusFilter, sortBy, sortOrder, rmFilter])
 
-  // Función helper para verificar si un cliente está en línea
-  const isClientOnline = (client: Client): boolean => {
-    if (!client.lastLogin) return false
-    
-    try {
-      let lastLoginDate: Date
-      if (client.lastLogin.toDate) {
-        lastLoginDate = client.lastLogin.toDate()
-      } else if (client.lastLogin instanceof Date) {
-        lastLoginDate = client.lastLogin
-      } else if (typeof client.lastLogin === 'number') {
-        lastLoginDate = new Date(client.lastLogin)
-      } else {
-        return false
-      }
-      
-      const now = new Date()
-      const diffMs = now.getTime() - lastLoginDate.getTime()
-      const diffMinutes = diffMs / (1000 * 60)
-      
-      // Considerar en línea si lastLogin fue hace menos de 5 minutos
-      return diffMinutes < 5
-    } catch (error) {
-      console.error('Error checking if client is online:', error)
-      return false
+  // Verificar si hay feedback del día de hoy (solo para clientes)
+  useEffect(() => {
+    if (isCoach || !user || !clientData?.id) {
+      setShowFeedbackModal(false)
+      setHasFeedbackToday(false)
+      return
     }
-  }
+
+    const checkTodayFeedback = async () => {
+      try {
+        // Crear timestamp del día de hoy (inicio del día, sin horas)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const todayTimestamp = Timestamp.fromDate(today)
+
+        // Consultar si existe feedback para hoy
+        const feedbackRef = collection(db, 'dailyFeedback')
+        const q = query(
+          feedbackRef,
+          where('clientId', '==', clientData.id),
+          where('date', '==', todayTimestamp)
+        )
+        const snapshot = await getDocs(q)
+
+        if (snapshot.empty) {
+          // No hay feedback de hoy, mostrar modal
+          setShowFeedbackModal(true)
+          setHasFeedbackToday(false)
+        } else {
+          // Ya hay feedback de hoy, no mostrar modal
+          setShowFeedbackModal(false)
+          setHasFeedbackToday(true)
+        }
+      } catch (error) {
+        console.error('Error checking today feedback:', error)
+        // En caso de error, no mostrar el modal
+        setShowFeedbackModal(false)
+        setHasFeedbackToday(false)
+      }
+    }
+
+    checkTodayFeedback()
+  }, [user, isCoach, clientData?.id])
+
 
   const handleClientClick = (clientId: string) => {
     navigate(`/client/${clientId}/profile`)
@@ -333,51 +513,79 @@ const HomePage = () => {
     }
   }
 
-  const handleMoveClientCategory = async (e: React.MouseEvent, clientId: string, newCategory: 'new' | 'old') => {
-    e.stopPropagation() // Evitar que se active el onClick de la tarjeta
+  // Función helper para calcular días hasta próximo pago
+  const calculateDaysUntilPayment = (subscriptionEndDate: any): number | null => {
+    if (!subscriptionEndDate) return null
     
     try {
-      const clientRef = doc(db, 'clients', clientId)
-      await updateDoc(clientRef, {
-        clientCategory: newCategory,
-        categoryUpdatedAt: new Date().toISOString()
-      })
-      // Actualizar el estado local inmediatamente para feedback visual
-      setClients(prevClients => 
-        prevClients.map(client => 
-          client.id === clientId 
-            ? { ...client, clientCategory: newCategory }
-            : client
-        )
-      )
-    } catch (error: any) {
-      console.error('Error al cambiar categoría del cliente:', error)
-      alert('Error al cambiar la categoría del cliente')
+      let endDate: Date
+      if (subscriptionEndDate.toDate) {
+        endDate = subscriptionEndDate.toDate()
+      } else if (subscriptionEndDate instanceof Date) {
+        endDate = subscriptionEndDate
+      } else if (typeof subscriptionEndDate === 'string') {
+        endDate = new Date(subscriptionEndDate)
+      } else if (subscriptionEndDate?.seconds) {
+        endDate = new Date(subscriptionEndDate.seconds * 1000)
+      } else {
+        return null
+      }
+      
+      if (isNaN(endDate.getTime())) {
+        return null
+      }
+      
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      endDate.setHours(0, 0, 0, 0)
+      
+      const diffTime = endDate.getTime() - now.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      
+      return diffDays
+    } catch (error) {
+      console.error('Error calculating days until payment:', error)
+      return null
     }
   }
 
-  const handlePlanChange = async (e: React.ChangeEvent<HTMLSelectElement>, clientId: string) => {
-    e.stopPropagation() // Evitar que se active el onClick de la tarjeta
-    const newPlan = e.target.value
+  // Función helper para calcular días suscrito
+  const calculateDaysSubscribed = (startDate: any): number | null => {
+    if (!startDate) return null
     
     try {
-      const clientRef = doc(db, 'clients', clientId)
-      await updateDoc(clientRef, {
-        plan: newPlan
-      })
-      // Actualizar el estado local inmediatamente para feedback visual
-      setClients(prevClients => 
-        prevClients.map(client => 
-          client.id === clientId 
-            ? { ...client, plan: newPlan }
-            : client
-        )
-      )
-    } catch (error: any) {
-      console.error('Error al actualizar el plan:', error)
-      alert('Error al actualizar el plan del cliente')
+      let date: Date
+      if (startDate.toDate) {
+        date = startDate.toDate()
+      } else if (startDate instanceof Date) {
+        date = startDate
+      } else if (typeof startDate === 'string') {
+        date = new Date(startDate)
+      } else if (startDate?.seconds) {
+        date = new Date(startDate.seconds * 1000)
+      } else {
+        return null
+      }
+      
+      if (isNaN(date.getTime())) {
+        return null
+      }
+      
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      date.setHours(0, 0, 0, 0)
+      
+      const diffTime = now.getTime() - date.getTime()
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      
+      return diffDays
+    } catch (error) {
+      console.error('Error calculating days subscribed:', error)
+      return null
     }
   }
+
+
 
   const cardVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -448,31 +656,112 @@ const HomePage = () => {
             )}
           </div>
 
-          {/* Campo de Búsqueda - Solo visible para el coach */}
+          {/* Componente de Filtros - Solo visible para el coach */}
           {isCoach && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.45 }}
-              className="mb-4"
+              className="mb-6"
             >
-              <div className="relative max-w-md mx-auto">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+              <div className={`max-w-7xl mx-auto p-4 rounded-xl ${
+                theme === 'dark' ? 'bg-slate-800/50 border border-slate-700' : 'bg-white/50 border border-gray-200'
+              }`}>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Búsqueda por Nombre */}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Buscar por nombre..."
+                      className={`w-full pl-10 pr-4 py-2 rounded-lg border transition-colors text-sm ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Filtro de Estado */}
+                  <div>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')}
+                      className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                      }`}
+                    >
+                      <option value="all">Todos</option>
+                      <option value="active">Activos</option>
+                      <option value="inactive">Inactivos</option>
+                    </select>
+                  </div>
+
+                  {/* Ordenamiento */}
+                  <div>
+                    <select
+                      value={sortBy === 'none' ? 'name' : sortBy === 'createdAt' ? (sortOrder === 'desc' ? 'recent' : 'oldest') : sortBy}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === 'recent') {
+                          setSortBy('createdAt')
+                          setSortOrder('desc')
+                        } else if (value === 'oldest') {
+                          setSortBy('createdAt')
+                          setSortOrder('asc')
+                        } else if (value === 'name') {
+                          setSortBy('name')
+                          setSortOrder('asc')
+                        } else {
+                          setSortBy('none')
+                        }
+                      }}
+                      className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                      }`}
+                    >
+                      <option value="name">Alfabético (A-Z)</option>
+                      <option value="recent">Más Reciente</option>
+                      <option value="oldest">Más Antiguo</option>
+                    </select>
+                  </div>
+
+                  {/* Filtro por RM */}
+                  <div>
+                    <select
+                      value={rmFilter === null ? 'all' : rmFilter ? 'withRM' : 'withoutRM'}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === 'all') {
+                          setRmFilter(null)
+                        } else if (value === 'withRM') {
+                          setRmFilter(true)
+                        } else {
+                          setRmFilter(false)
+                        }
+                      }}
+                      className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
+                        theme === 'dark'
+                          ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
+                      }`}
+                    >
+                      <option value="all">Todos (RM)</option>
+                      <option value="withRM">Con RM</option>
+                      <option value="withoutRM">Sin RM</option>
+                    </select>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar por nombre o apellido..."
-                  className={`w-full pl-10 pr-4 py-3 rounded-lg border transition-colors ${
-                    theme === 'dark'
-                      ? 'bg-slate-700 border-slate-600 text-white placeholder-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
-                  }`}
-                />
               </div>
             </motion.div>
           )}
@@ -545,7 +834,7 @@ const HomePage = () => {
                     <p className={`text-sm ${
                       theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
                     }`}>
-                      Registra la carga utilizada y tu valoración de esfuerzo
+                      Registra la carga utilizada en tus entrenamientos
                     </p>
                   </div>
                 </motion.button>
@@ -578,6 +867,38 @@ const HomePage = () => {
                       theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
                     }`}>
                       Contacta al coach a través de diferentes plataformas
+                    </p>
+                  </div>
+                </motion.button>
+
+                {/* Ficha 4: Feedback Diario */}
+                <motion.button
+                  onClick={() => setShowFeedbackModal(true)}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-6 rounded-xl shadow-lg transition-all ${
+                    theme === 'dark'
+                      ? 'bg-slate-800/80 border border-slate-700 hover:bg-slate-700/80'
+                      : 'bg-white border border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className={`p-4 rounded-full ${
+                      theme === 'dark' ? 'bg-purple-600/20' : 'bg-purple-100'
+                    }`}>
+                      <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <h3 className={`text-lg font-bold ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Feedback Diario
+                    </h3>
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
+                    }`}>
+                      Registra tu sensación de esfuerzo y estado de ánimo
                     </p>
                   </div>
                 </motion.button>
@@ -628,52 +949,6 @@ const HomePage = () => {
           {isCoach ? (
             /* Vista del Coach - Lista de Clientes */
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <motion.h2 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 }}
-                  className={`text-3xl font-bold ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}
-                >
-                  {t('dashboard.clients')} ({clients.length})
-                </motion.h2>
-                
-                {/* Botones de modo de visualización */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      viewMode === 'grid'
-                        ? 'bg-primary-600 text-white'
-                        : theme === 'dark'
-                        ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                    title="Vista en miniatura"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded-lg transition-colors ${
-                      viewMode === 'list'
-                        ? 'bg-primary-600 text-white'
-                        : theme === 'dark'
-                        ? 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
-                    title="Vista en lista"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
 
             {loading ? (
               <div className="text-center py-12">
@@ -707,30 +982,6 @@ const HomePage = () => {
           ) : null}
           {/* Contenido del Coach - Lista de Clientes */}
           {isCoach && (() => {
-              // Dividir clientes en nuevos y antiguos
-              // Primero verificar si tienen categoría manual asignada
-              const newClients = clients.filter(client => {
-                // Si tiene categoría manual, usar esa
-                if (client.clientCategory === 'new') return true
-                if (client.clientCategory === 'old') return false
-                // Si no tiene categoría manual, usar criterio de 30 días
-                if (!client.createdAt) return false
-                const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
-                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-                return createdAt >= thirtyDaysAgo
-              })
-              
-              const oldClients = clients.filter(client => {
-                // Si tiene categoría manual, usar esa
-                if (client.clientCategory === 'old') return true
-                if (client.clientCategory === 'new') return false
-                // Si no tiene categoría manual, usar criterio de 30 días
-                if (!client.createdAt) return true
-                const createdAt = client.createdAt.toDate ? client.createdAt.toDate() : new Date(client.createdAt)
-                const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-                return createdAt < thirtyDaysAgo
-              })
-              
               // Ordenar clientes según el filtro seleccionado
               let sortedClients = [...clients]
               
@@ -786,456 +1037,26 @@ const HomePage = () => {
               const allClients = sortedClients
               
               // Aplicar filtro de búsqueda
-              const filteredNewClients = filterClients(newClients)
-              const filteredOldClients = filterClients(oldClients)
               const filteredAllClients = filterClients(allClients)
 
               return (
                 <>
-                  {/* Vista de fichas o listado según activeCategory */}
-                  {activeCategory === null ? (
-                    <>
-                      {/* Fichas grandes clickeables */}
-                      <div className="flex flex-row space-x-2 justify-start max-w-6xl mx-auto mb-8">
-                        {/* Ficha Clientes Nuevos */}
-                        <motion.div
-                          variants={cardVariants}
-                          initial="hidden"
-                          animate="visible"
-                          whileHover={{ scale: 1.05, y: -5 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl flex-1 min-w-[200px] sm:min-w-[250px] max-w-[300px] bg-gradient-to-br from-green-600 to-green-800`}
-                          onClick={() => setActiveCategory('new')}
-                        >
-                          <div className="text-center">
-                            <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                              {searchTerm ? filteredNewClients.length : newClients.length}
-                            </div>
-                            <div className="text-white font-semibold text-lg sm:text-xl mb-2">
-                              Clientes Nuevos
-                            </div>
-                            <div className="text-green-100 text-sm sm:text-base mt-2">
-                              Haz clic para ver el listado
-                            </div>
-                          </div>
-                        </motion.div>
-
-                        {/* Ficha Clientes Antiguos */}
-                        <motion.div
-                          variants={cardVariants}
-                          initial="hidden"
-                          animate="visible"
-                          whileHover={{ scale: 1.05, y: -5 }}
-                          whileTap={{ scale: 0.95 }}
-                          className={`relative rounded-xl p-3 sm:p-4 shadow-lg transition-all h-32 sm:h-40 flex items-center justify-center cursor-pointer hover:shadow-2xl flex-1 min-w-[200px] sm:min-w-[250px] max-w-[300px] bg-gradient-to-br from-blue-600 to-blue-800`}
-                          onClick={() => setActiveCategory('old')}
-                        >
-                          <div className="text-center">
-                            <div className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                              {searchTerm ? filteredOldClients.length : oldClients.length}
-                            </div>
-                            <div className="text-white font-semibold text-lg sm:text-xl mb-2">
-                              Clientes Antiguos
-                            </div>
-                            <div className="text-blue-100 text-sm sm:text-base mt-2">
-                              Haz clic para ver el listado
-                            </div>
-                          </div>
-                        </motion.div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Botón Volver */}
-                      <div className="mb-6">
-                        <button
-                          onClick={() => setActiveCategory(null)}
-                          className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                            theme === 'dark'
-                              ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                              : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                          }`}
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                          Volver
-                        </button>
-                      </div>
-
-                      {/* Listado de clientes según categoría activa */}
-                      {activeCategory === 'new' && filteredNewClients.length > 0 && (
-                        <div className="mb-8">
-                          <motion.h3 
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className={`text-2xl font-bold mb-4 ${
-                              theme === 'dark' ? 'text-white' : 'text-gray-900'
-                            }`}
-                          >
-                            Clientes Nuevos ({filteredNewClients.length})
-                          </motion.h3>
-                      <div className={`${
-                        viewMode === 'grid' 
-                          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                          : 'space-y-3'
-                      }`}>
-                        {filteredNewClients.map((client, index) => (
-                          <motion.div
-                            key={client.id}
-                            variants={cardVariants}
-                            initial="hidden"
-                            animate="visible"
-                            transition={{ delay: 0.8 + index * 0.1 }}
-                            whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => handleClientClick(client.id)}
-                            className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative cursor-pointer ${
-                              viewMode === 'list' 
-                                ? 'p-3' 
-                                : 'p-6'
-                            } ${
-                              theme === 'dark' 
-                                ? 'bg-slate-800/80 border border-slate-700' 
-                                : 'bg-white border border-gray-200'
-                            }`}
-                          >
-                            {/* Barra de Progreso */}
-                            {client.progress && (
-                              <div className="mb-2">
-                                <ProgressTracker
-                                  dailyProgress={0}
-                                  monthlyProgress={client.progress.monthlyProgress}
-                                  completedDays={client.progress.completedDays}
-                                  totalDays={client.progress.totalDays}
-                                  showDetails={false}
-                                  createdAt={client.createdAt}
-                                  lastLogin={client.lastLogin}
-                                />
-                              </div>
-                            )}
-                            
-                            <div>
-                              <div className="flex items-start justify-between mb-4">
-                                <div>
-                                  <h3 
-                                    className={`text-xl sm:text-2xl font-bold mb-2 line-clamp-2 ${
-                                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                    }`}
-                                    title={client.name}
-                                  >
-                                    {formatClientName(client.name)}
-                                  </h3>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                    isClientOnline(client)
-                                      ? theme === 'dark'
-                                        ? 'bg-green-600/30 text-green-300 border border-green-500/70'
-                                        : 'bg-green-100 text-green-700 border border-green-500'
-                                      : client.status === 'active'
-                                      ? theme === 'dark'
-                                        ? 'bg-slate-600/30 text-slate-300 border border-slate-500/70'
-                                        : 'bg-gray-200 text-gray-700 border border-gray-400'
-                                      : theme === 'dark'
-                                        ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-                                        : 'bg-gray-200 text-gray-600 border border-gray-400'
-                                  }`}>
-                                    {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
-                                  </span>
-                                  {/* Dropdown de categoría y botón eliminar - Solo para coach */}
-                                  <div className="flex items-center gap-2">
-                                    {isCoach && (
-                                      <select
-                                        value={client.clientCategory === 'old' ? 'old' : client.clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
-                                        onChange={(e) => {
-                                          const newCategory = e.target.value as 'new' | 'old'
-                                          handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                                          theme === 'dark'
-                                            ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
-                                            : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
-                                        }`}
-                                        title="Cambiar categoría"
-                                      >
-                                        <option value="new">Nuevo</option>
-                                        <option value="old">Antiguo</option>
-                                      </select>
-                                    )}
-                                    <button
-                                      onClick={(e) => handleDeleteClient(e, client.id)}
-                                      className={`p-2 rounded-lg transition-colors ${
-                                        theme === 'dark'
-                                          ? 'hover:bg-red-500/20 text-red-400'
-                                          : 'hover:bg-red-50 text-red-600'
-                                      }`}
-                                      title={t('dashboard.deleteClient')}
-                                      aria-label={t('dashboard.deleteClient')}
-                                    >
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className={`mb-4 p-3 rounded-lg ${
-                                theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                              }`}>
-                                <select
-                                  value={client.plan}
-                                  onChange={(e) => handlePlanChange(e, client.id)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className={`w-full text-sm font-semibold rounded-lg px-2 py-1 border transition-colors ${
-                                    theme === 'dark'
-                                      ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
-                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                                >
-                                  <option value="Plan Mensual - Nivel 1">Plan Mensual - Nivel 1</option>
-                                  <option value="Plan Mensual - Nivel 2">Plan Mensual - Nivel 2</option>
-                                  <option value="Plan Mensual - Nivel 3">Plan Mensual - Nivel 3</option>
-                                  <option value="Plan Personalizado">Plan Personalizado</option>
-                                </select>
-                              </div>
-
-                              {/* Suscripción */}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                      {/* Listado de clientes antiguos */}
-                      {activeCategory === 'old' && filteredOldClients.length > 0 && (
-                        <div className="mb-8">
-                          <motion.h3 
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className={`text-2xl font-bold mb-4 ${
-                              theme === 'dark' ? 'text-white' : 'text-gray-900'
-                            }`}
-                          >
-                            Clientes Antiguos ({filteredOldClients.length})
-                          </motion.h3>
-                      <div className={`${
-                        viewMode === 'grid' 
-                          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                          : 'space-y-3'
-                      }`}>
-                        {filteredOldClients.map((client, index) => (
-                          <motion.div
-                            key={client.id}
-                            variants={cardVariants}
-                            initial="hidden"
-                            animate="visible"
-                            transition={{ delay: 0.8 + (filteredNewClients.length * 0.1) + index * 0.1 }}
-                            whileHover={{ scale: 1.02, y: -5 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => handleClientClick(client.id)}
-                            className={`rounded-xl p-4 sm:p-6 shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between min-h-[280px] sm:min-h-[320px] cursor-pointer ${
-                              theme === 'dark' 
-                                ? 'bg-slate-800/80 border border-slate-700' 
-                                : 'bg-white border border-gray-200'
-                            }`}
-                          >
-                            {/* Barra de Progreso */}
-                            {client.progress && (
-                              <div className="mb-2">
-                                <ProgressTracker
-                                  dailyProgress={0}
-                                  monthlyProgress={client.progress.monthlyProgress}
-                                  completedDays={client.progress.completedDays}
-                                  totalDays={client.progress.totalDays}
-                                  showDetails={false}
-                                  createdAt={client.createdAt}
-                                  lastLogin={client.lastLogin}
-                                />
-                              </div>
-                            )}
-                            
-                            <div>
-                              <div className="flex items-start justify-between mb-4">
-                                <div>
-                                  <h3 
-                                    className={`text-xl sm:text-2xl font-bold mb-2 line-clamp-2 ${
-                                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                    }`}
-                                    title={client.name}
-                                  >
-                                    {formatClientName(client.name)}
-                                  </h3>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                    isClientOnline(client)
-                                      ? theme === 'dark'
-                                        ? 'bg-green-600/30 text-green-300 border border-green-500/70'
-                                        : 'bg-green-100 text-green-700 border border-green-500'
-                                      : client.status === 'active'
-                                      ? theme === 'dark'
-                                        ? 'bg-slate-600/30 text-slate-300 border border-slate-500/70'
-                                        : 'bg-gray-200 text-gray-700 border border-gray-400'
-                                      : theme === 'dark'
-                                        ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-                                        : 'bg-gray-200 text-gray-600 border border-gray-400'
-                                  }`}>
-                                    {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
-                                  </span>
-                                  {/* Dropdown de categoría y botón eliminar - Solo para coach */}
-                                  <div className="flex items-center gap-2">
-                                    {isCoach && (
-                                      <select
-                                        value={client.clientCategory === 'old' ? 'old' : client.clientCategory === 'new' ? 'new' : (oldClients.includes(client) ? 'old' : 'new')}
-                                        onChange={(e) => {
-                                          const newCategory = e.target.value as 'new' | 'old'
-                                          handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                                          theme === 'dark'
-                                            ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
-                                            : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
-                                        }`}
-                                        title="Cambiar categoría"
-                                      >
-                                        <option value="new">Nuevo</option>
-                                        <option value="old">Antiguo</option>
-                                      </select>
-                                    )}
-                                    <button
-                                      onClick={(e) => handleDeleteClient(e, client.id)}
-                                      className={`p-2 rounded-lg transition-colors ${
-                                        theme === 'dark'
-                                          ? 'hover:bg-red-500/20 text-red-400'
-                                          : 'hover:bg-red-50 text-red-600'
-                                      }`}
-                                      title={t('dashboard.deleteClient')}
-                                      aria-label={t('dashboard.deleteClient')}
-                                    >
-                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                              
-                              <div className={`mb-4 p-3 rounded-lg ${
-                                theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                              }`}>
-                                <select
-                                  value={client.plan}
-                                  onChange={(e) => handlePlanChange(e, client.id)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className={`w-full text-sm font-semibold rounded-lg px-2 py-1 border transition-colors ${
-                                    theme === 'dark'
-                                      ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
-                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                                  } focus:outline-none focus:ring-2 focus:ring-primary-500`}
-                                >
-                                  <option value="Plan Mensual - Nivel 1">Plan Mensual - Nivel 1</option>
-                                  <option value="Plan Mensual - Nivel 2">Plan Mensual - Nivel 2</option>
-                                  <option value="Plan Mensual - Nivel 3">Plan Mensual - Nivel 3</option>
-                                  <option value="Plan Personalizado">Plan Personalizado</option>
-                                </select>
-                              </div>
-
-                              {/* Suscripción */}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                    </>
-                  )}
-
                   {/* Listado completo de todos los clientes */}
-                  {activeCategory === null && (
-                    <div className="mb-8 mt-12">
-                      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-                        <motion.h3 
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: 0.8 }}
-                          className={`text-xl sm:text-2xl font-bold ${
-                            theme === 'dark' ? 'text-white' : 'text-gray-900'
-                          }`}
-                        >
-                          Todos los Clientes ({filteredAllClients.length})
-                        </motion.h3>
+                  <div className="mb-8 mt-12">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+                      <motion.h3 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.8 }}
+                        className={`text-xl sm:text-2xl font-bold ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        Clientes ({filteredAllClients.length})
+                      </motion.h3>
                         
-                        <div className="flex items-center gap-3 flex-wrap">
-                          {/* Botón Colapsar/Expandir */}
-                          <button
-                            onClick={() => setIsAllClientsCollapsed(!isAllClientsCollapsed)}
-                            className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
-                              theme === 'dark'
-                                ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                                : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                            }`}
-                          >
-                            <svg 
-                              className={`w-5 h-5 transition-transform ${isAllClientsCollapsed ? '' : 'rotate-180'}`}
-                              fill="none" 
-                              stroke="currentColor" 
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                            {isAllClientsCollapsed ? 'Expandir' : 'Colapsar'}
-                          </button>
-                          
-                          {/* Filtro de Ordenamiento */}
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={sortBy}
-                              onChange={(e) => {
-                                const newSort = e.target.value as 'name' | 'subscription' | 'payment' | 'none'
-                                setSortBy(newSort)
-                                if (newSort === 'none') {
-                                  setSortOrder('asc')
-                                }
-                              }}
-                              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                                theme === 'dark'
-                                  ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
-                                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
-                              }`}
-                            >
-                              <option value="none">Sin ordenar</option>
-                              <option value="name">Alfabético</option>
-                              <option value="subscription">Tiempo suscrito</option>
-                              <option value="payment">Próximo a pagar</option>
-                            </select>
-                            
-                            {sortBy !== 'none' && (
-                              <button
-                                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                                className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                                  theme === 'dark'
-                                    ? 'bg-slate-700 hover:bg-slate-600 text-white'
-                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                                }`}
-                                title={sortOrder === 'asc' ? 'Orden ascendente' : 'Orden descendente'}
-                              >
-                                {sortOrder === 'asc' ? '↑' : '↓'}
-                              </button>
-                            )}
-                          </div>
-                        </div>
                       </div>
-                    {!isAllClientsCollapsed && (
-                      <div className={`${
-                        viewMode === 'grid' 
-                          ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                          : 'space-y-3'
-                      }`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {filteredAllClients.map((client, index) => (
                         <motion.div
                           key={client.id}
@@ -1243,118 +1064,75 @@ const HomePage = () => {
                           initial="hidden"
                           animate="visible"
                           transition={{ delay: 0.9 + index * 0.05 }}
-                          whileHover={{ scale: viewMode === 'list' ? 1 : 1.02, y: viewMode === 'list' ? 0 : -5 }}
+                          whileHover={{ scale: 1.02, y: -5 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => handleClientClick(client.id)}
-                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between cursor-pointer ${
-                            viewMode === 'list' 
-                              ? 'p-3 min-h-[200px]' 
-                              : 'p-4 sm:p-6 min-h-[280px] sm:min-h-[320px]'
-                          } ${
+                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between cursor-pointer p-1.5 sm:p-2 min-h-[120px] sm:min-h-[140px] ${
                             theme === 'dark' 
                               ? 'bg-slate-800/80 border border-slate-700' 
                               : 'bg-white border border-gray-200'
                           }`}
                         >
-                          {/* Barra de Progreso */}
-                          {client.progress && (
-                            <div className="mb-2">
-                              <ProgressTracker
-                                dailyProgress={0}
-                                monthlyProgress={client.progress.monthlyProgress}
-                                completedDays={client.progress.completedDays}
-                                totalDays={client.progress.totalDays}
-                                showDetails={false}
-                                createdAt={client.createdAt}
-                                lastLogin={client.lastLogin}
-                              />
-                            </div>
-                          )}
                           <div>
-                            <div className="flex items-start justify-between mb-4">
-                              <div>
+                            <div className="flex items-start justify-between mb-0.5">
+                              <div className="flex-1 min-w-0">
                                 <h3 
-                                  className={`text-xl sm:text-2xl font-bold mb-1 line-clamp-2 ${
+                                  className={`text-base sm:text-lg font-bold mb-0.5 line-clamp-2 ${
                                     theme === 'dark' ? 'text-white' : 'text-gray-900'
                                   }`}
                                   title={client.name}
                                 >
                                   {formatClientName(client.name)}
                                 </h3>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                  isClientOnline(client)
-                                    ? theme === 'dark'
-                                      ? 'bg-green-600/30 text-green-300 border border-green-500/70'
-                                      : 'bg-green-100 text-green-700 border border-green-500'
-                                    : client.status === 'active'
-                                    ? theme === 'dark'
-                                      ? 'bg-slate-600/30 text-slate-300 border border-slate-500/70'
-                                      : 'bg-gray-200 text-gray-700 border border-gray-400'
-                                    : theme === 'dark'
-                                      ? 'bg-gray-500/20 text-gray-400 border border-gray-500/50'
-                                      : 'bg-gray-200 text-gray-600 border border-gray-400'
+                                <div className={`text-xs sm:text-sm space-y-0 ${
+                                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
                                 }`}>
-                                  {isClientOnline(client) ? t('dashboard.online') : (client.status === 'active' ? t('dashboard.disconnected') : t('dashboard.inactive'))}
-                                </span>
-                                {/* Dropdown de categoría y botón eliminar - Solo para coach */}
-                                <div className="flex items-center gap-2">
-                                  {isCoach && (
-                                    <select
-                                      value={client.clientCategory === 'old' ? 'old' : client.clientCategory === 'new' ? 'new' : (newClients.includes(client) ? 'new' : 'old')}
-                                      onChange={(e) => {
-                                        const newCategory = e.target.value as 'new' | 'old'
-                                        handleMoveClientCategory({ stopPropagation: () => {} } as any, client.id, newCategory)
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                                        theme === 'dark'
-                                          ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
-                                          : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
-                                      }`}
-                                      title="Cambiar categoría"
-                                    >
-                                      <option value="new">Nuevo</option>
-                                      <option value="old">Antiguo</option>
-                                    </select>
-                                  )}
-                                  <button
-                                    onClick={(e) => handleDeleteClient(e, client.id)}
-                                    className={`p-2 rounded-lg transition-colors ${
-                                      theme === 'dark'
-                                        ? 'hover:bg-red-500/20 text-red-400'
-                                        : 'hover:bg-red-50 text-red-600'
-                                    }`}
-                                    title={t('dashboard.deleteClient')}
-                                    aria-label={t('dashboard.deleteClient')}
-                                  >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
+                                  {(() => {
+                                    const daysSubscribed = calculateDaysSubscribed(client.subscriptionStartDate || client.createdAt)
+                                    const daysUntilPayment = calculateDaysUntilPayment(client.subscriptionEndDate)
+                                    return (
+                                      <>
+                                        {daysSubscribed !== null && (
+                                          <p>Días suscrito: {daysSubscribed} días</p>
+                                        )}
+                                        {daysUntilPayment !== null ? (
+                                          <p>Próximo pago en: {daysUntilPayment > 0 ? `${daysUntilPayment} días` : 'Hoy'}</p>
+                                        ) : (
+                                          <p>Sin fecha de pago</p>
+                                        )}
+                                        {client.latestRM && (
+                                          <p className="mt-0.5">
+                                            <span className="font-semibold">RM:</span> {client.latestRM.weight} {client.latestRM.exercise}
+                                          </p>
+                                        )}
+                                      </>
+                                    )
+                                  })()}
                                 </div>
                               </div>
+                              {/* Botón eliminar - Solo para coach */}
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={(e) => handleDeleteClient(e, client.id)}
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    theme === 'dark'
+                                      ? 'hover:bg-red-500/20 text-red-400'
+                                      : 'hover:bg-red-50 text-red-600'
+                                  }`}
+                                  title={t('dashboard.deleteClient')}
+                                  aria-label={t('dashboard.deleteClient')}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
-                            
-                            <div className={`mb-4 p-3 rounded-lg ${
-                              theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                            }`}>
-                              <p className={`text-sm font-semibold ${
-                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                              }`}>
-                                {client.plan}
-                              </p>
-                            </div>
-
-                            {/* Suscripción */}
                           </div>
                         </motion.div>
                       ))}
-                      </div>
-                    )}
                     </div>
-                  )}
+                  </div>
                 </>
               )
             })()}
@@ -1386,6 +1164,11 @@ const HomePage = () => {
           <LoadAndEffortModal
             isOpen={showLoadAndEffortModal}
             onClose={() => setShowLoadAndEffortModal(false)}
+            clientId={clientData.id}
+          />
+          <DailyFeedbackModal
+            isOpen={showFeedbackModal}
+            onClose={() => setShowFeedbackModal(false)}
             clientId={clientData.id}
           />
           <CoachContactModal

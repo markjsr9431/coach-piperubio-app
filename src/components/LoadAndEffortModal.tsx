@@ -20,7 +20,6 @@ interface DailyRecord {
   id: string
   date: number
   implementos: Array<{ implement: string, load: string }>
-  rpe: number
 }
 
 const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalProps) => {
@@ -29,7 +28,6 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
   const [hasRecordToday, setHasRecordToday] = useState(false)
   const [loading, setLoading] = useState(true)
   const [implementos, setImplementos] = useState<ImplementEntry[]>([])
-  const [rpe, setRpe] = useState(5)
 
   const implementOptions = [
     'Mancuerna',
@@ -100,10 +98,6 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
     ))
   }
 
-  const handleRPEChange = (value: number) => {
-    setRpe(value)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -137,8 +131,7 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
         implementos: validImplementos.map(imp => ({
           implement: imp.implement,
           load: imp.load
-        })),
-        rpe: rpe
+        }))
       }
 
       const updatedRecords = [...existingRecords, newRecord]
@@ -150,7 +143,6 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
 
       // Resetear formulario
       setImplementos([])
-      setRpe(5)
       setHasRecordToday(true)
       alert('Registro guardado exitosamente')
     } catch (error) {
@@ -340,69 +332,6 @@ const LoadAndEffortModal = ({ isOpen, onClose, clientId }: LoadAndEffortModalPro
                         </div>
                       ))
                     )}
-                  </div>
-                </div>
-
-                {/* Sección: Valoración de Esfuerzo */}
-                <div className={`rounded-xl p-6 ${
-                  theme === 'dark' ? 'bg-slate-700/50' : 'bg-gray-100'
-                }`}>
-                  <h3 className={`text-lg font-bold mb-4 ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    Valoración de Esfuerzo (RPE)
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    <p className={`text-sm ${
-                      theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
-                    }`}>
-                      Escala de Esfuerzo Percibido: 1 = Muy fácil, 10 = Esfuerzo máximo
-                    </p>
-
-                    {/* Botones de RPE */}
-                    <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(value => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => handleRPEChange(value)}
-                          className={`py-3 px-2 rounded-lg font-semibold transition-all ${
-                            rpe === value
-                              ? 'bg-primary-600 text-white scale-110 shadow-lg'
-                              : theme === 'dark'
-                              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-600'
-                              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                          }`}
-                        >
-                          {value}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Indicador de RPE seleccionado */}
-                    <div className={`text-center p-4 rounded-lg ${
-                      theme === 'dark' ? 'bg-slate-800' : 'bg-white'
-                    }`}>
-                      <p className={`text-sm font-semibold mb-1 ${
-                        theme === 'dark' ? 'text-slate-300' : 'text-gray-600'
-                      }`}>
-                        Esfuerzo seleccionado:
-                      </p>
-                      <p className={`text-3xl font-bold ${
-                        theme === 'dark' ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {rpe} / 10
-                      </p>
-                      <p className={`text-xs mt-1 ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-                      }`}>
-                        {rpe <= 3 ? 'Muy fácil' :
-                         rpe <= 5 ? 'Fácil' :
-                         rpe <= 7 ? 'Moderado' :
-                         rpe <= 9 ? 'Difícil' : 'Esfuerzo máximo'}
-                      </p>
-                    </div>
                   </div>
                 </div>
 
