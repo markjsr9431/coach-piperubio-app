@@ -1167,7 +1167,7 @@ const HomePage = () => {
       />
 
       {/* Modales para clientes */}
-      {clientData?.id && (
+      {clientData?.id && !isCoach && (
         <>
           <RMAndPRModal
             isOpen={showRMAndPRModal}
@@ -1181,8 +1181,11 @@ const HomePage = () => {
             clientId={clientData.id}
           />
           <DailyFeedbackModal
-            isOpen={showFeedbackModal}
-            onClose={() => setShowFeedbackModal(false)}
+            isOpen={showFeedbackModal && !hasFeedbackToday}
+            onClose={() => {
+              setShowFeedbackModal(false)
+              setHasFeedbackToday(true)
+            }}
             clientId={clientData.id}
           />
           <CoachContactModal
