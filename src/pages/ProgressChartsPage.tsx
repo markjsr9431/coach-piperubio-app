@@ -753,6 +753,9 @@ const ProgressChartsPage = () => {
                           borderWidth: 1,
                           callbacks: {
                             label: function(context) {
+                              if (context.parsed.y === null || context.parsed.y === undefined) {
+                                return ''
+                              }
                               if (context.datasetIndex === 1) {
                                 // Para mood, mostrar el valor original (1-5) en lugar del escalado
                                 return `Estado de Ánimo: ${context.parsed.y / 2}`
@@ -794,7 +797,10 @@ const ProgressChartsPage = () => {
                             color: theme === 'dark' ? '#94a3b8' : '#6b7280',
                             stepSize: 2,
                             callback: function(value) {
-                              return (value / 2).toString() // Mostrar valores 1-5 en lugar de 2-10
+                              if (typeof value === 'number') {
+                                return (value / 2).toString() // Mostrar valores 1-5 en lugar de 2-10
+                              }
+                              return value?.toString() || ''
                             }
                           },
                           grid: {

@@ -103,7 +103,21 @@ const HomePage = () => {
     // Si es el coach, cargar lista de clientes
     if (isCoach) {
       // Función para filtrar clientes (excluir admins)
-      const isClient = (data: any): boolean => {
+      interface ClientData {
+        name?: string
+        email?: string
+        plan?: string
+        status?: string
+        lastWorkout?: any
+        createdAt?: any
+        lastLogin?: any
+        subscriptionStartDate?: any
+        subscriptionEndDate?: any
+        profilePhoto?: string | null
+        avatar?: string | null
+      }
+
+      const isClient = (data: any): data is ClientData => {
         // Si tiene role, debe ser 'client'
         if (data.role) {
           return data.role === 'client'
@@ -217,19 +231,20 @@ const HomePage = () => {
                   console.error(`Error loading RM for ${docSnapshot.id}:`, error)
                 }
 
+              const clientData = data as ClientData
               const client: Client = {
                 id: docSnapshot.id,
-                name: data.name || '',
-                email: data.email || '',
-                plan: data.plan || 'Plan Mensual - Nivel 2',
-                status: data.status || 'active',
-                lastWorkout: data.lastWorkout || undefined,
-                createdAt: data.createdAt || undefined,
-                lastLogin: data.lastLogin || undefined,
-                subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
-                subscriptionEndDate: data.subscriptionEndDate || undefined,
-                profilePhoto: data.profilePhoto || null,
-                avatar: data.avatar || null,
+                name: clientData.name || '',
+                email: clientData.email || '',
+                plan: clientData.plan || 'Plan Mensual - Nivel 2',
+                status: (clientData.status as 'active' | 'inactive') || 'active',
+                lastWorkout: clientData.lastWorkout || undefined,
+                createdAt: clientData.createdAt || undefined,
+                lastLogin: clientData.lastLogin || undefined,
+                subscriptionStartDate: clientData.subscriptionStartDate || clientData.createdAt || undefined,
+                subscriptionEndDate: clientData.subscriptionEndDate || undefined,
+                profilePhoto: clientData.profilePhoto || null,
+                avatar: clientData.avatar || null,
                 progress,
                 latestRM
               }
@@ -284,7 +299,7 @@ const HomePage = () => {
       // Luego suscribirse para actualizaciones en tiempo real
       const clientsRef = collection(db, 'clients')
       const q = buildQuery(clientsRef)
-      const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const unsubscribe = onSnapshot(q, async (snapshot: any) => {
         // Cargar progreso para cada cliente
         const clientsWithProgress = await Promise.all(
           Array.from(snapshot.docs).map(async (docSnapshot) => {
@@ -334,19 +349,20 @@ const HomePage = () => {
                 console.error(`Error loading RM for ${docSnapshot.id}:`, error)
               }
 
+              const clientData = data as ClientData
               const client: Client = {
                 id: docSnapshot.id,
-                name: data.name || '',
-                email: data.email || '',
-                plan: data.plan || 'Plan Mensual - Nivel 2',
-                status: data.status || 'active',
-                lastWorkout: data.lastWorkout || undefined,
-                createdAt: data.createdAt || undefined,
-                lastLogin: data.lastLogin || undefined,
-                subscriptionStartDate: data.subscriptionStartDate || data.createdAt || undefined,
-                subscriptionEndDate: data.subscriptionEndDate || undefined,
-                profilePhoto: data.profilePhoto || null,
-                avatar: data.avatar || null,
+                name: clientData.name || '',
+                email: clientData.email || '',
+                plan: clientData.plan || 'Plan Mensual - Nivel 2',
+                status: (clientData.status as 'active' | 'inactive') || 'active',
+                lastWorkout: clientData.lastWorkout || undefined,
+                createdAt: clientData.createdAt || undefined,
+                lastLogin: clientData.lastLogin || undefined,
+                subscriptionStartDate: clientData.subscriptionStartDate || clientData.createdAt || undefined,
+                subscriptionEndDate: clientData.subscriptionEndDate || undefined,
+                profilePhoto: clientData.profilePhoto || null,
+                avatar: clientData.avatar || null,
                 progress,
                 latestRM
               }
@@ -388,7 +404,7 @@ const HomePage = () => {
         
         console.log(`Actualización en tiempo real: ${validClients.length} clientes:`, validClients.map(c => c.email))
         setClients(validClients)
-      }, (error) => {
+      }, (error: any) => {
         console.error('Error in real-time subscription:', error)
       })
 
