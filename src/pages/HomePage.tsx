@@ -12,8 +12,7 @@ import LoadAndEffortModal from '../components/LoadAndEffortModal'
 import CoachContactModal from '../components/CoachContactModal'
 import DailyFeedbackModal from '../components/DailyFeedbackModal'
 import { db } from '../firebaseConfig'
-import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, updateDoc, query, where, orderBy, Timestamp } from 'firebase/firestore'
-import { calculateTimeActive } from '../utils/timeUtils'
+import { collection, onSnapshot, doc, deleteDoc, getDocs, getDoc, query, where, orderBy, Timestamp, QuerySnapshot, DocumentSnapshot } from 'firebase/firestore'
 
 // Datos de ejemplo de clientes (esto se conectará con Firebase más adelante)
 interface Client {
@@ -69,14 +68,12 @@ const HomePage = () => {
   const [showRMAndPRModal, setShowRMAndPRModal] = useState(false)
   const [showLoadAndEffortModal, setShowLoadAndEffortModal] = useState(false)
   const [showCoachContactModal, setShowCoachContactModal] = useState(false)
-  const viewMode: 'grid' | 'list' = 'grid' // Vista fija en grid
   const [sortBy, setSortBy] = useState<'name' | 'subscription' | 'payment' | 'createdAt' | 'none'>('none')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all')
   const [rmFilter, setRmFilter] = useState<boolean | null>(null)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
-  const [hasFeedbackToday, setHasFeedbackToday] = useState(false)
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -299,10 +296,10 @@ const HomePage = () => {
       // Luego suscribirse para actualizaciones en tiempo real
       const clientsRef = collection(db, 'clients')
       const q = buildQuery(clientsRef)
-      const unsubscribe = onSnapshot(q, async (snapshot: any) => {
+      const unsubscribe = onSnapshot(q, async (snapshot: QuerySnapshot) => {
         // Cargar progreso para cada cliente
         const clientsWithProgress = await Promise.all(
-          Array.from(snapshot.docs).map(async (docSnapshot) => {
+          Array.from(snapshot.docs).map(async (docSnapshot: DocumentSnapshot) => {
             const data = docSnapshot.data()
             if (isClient(data)) {
               // Cargar progreso
@@ -313,10 +310,10 @@ const HomePage = () => {
                 if (progressDoc.exists()) {
                   const progressData = progressDoc.data()
                       progress = {
-                        monthlyProgress: progressData.monthlyProgress || 0,
-                        completedDays: progressData.completedDays || 0,
-                        totalDays: progressData.totalDays || 30,
-                        averageWorkoutTime: progressData.averageWorkoutTime || undefined
+                        monthlyProgress: progressData?.monthlyProgress || 0,
+                        completedDays: progressData?.completedDays || 0,
+                        totalDays: progressData?.totalDays || 30,
+                        averageWorkoutTime: progressData?.averageWorkoutTime || undefined
                       }
                 }
               } catch (error) {
@@ -330,7 +327,7 @@ const HomePage = () => {
                 const recordsDoc = await getDoc(recordsRef)
                 if (recordsDoc.exists()) {
                   const recordsData = recordsDoc.data()
-                  const rms = recordsData.rms || []
+                  const rms = recordsData?.rms || []
                   if (rms.length > 0) {
                     // Obtener el RM más reciente
                     const sortedRMs = [...rms].sort((a: any, b: any) => {

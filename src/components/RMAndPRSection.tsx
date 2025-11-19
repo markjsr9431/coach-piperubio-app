@@ -456,7 +456,7 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
   }
 
   // Función para filtrar registros por fecha
-  const filterByDate = (records: RMRecord[] | PRRecord[]): (RMRecord[] | PRRecord[]) => {
+  const filterByDate = <T extends RMRecord | PRRecord>(records: T[]): T[] => {
     if (dateFilter === 'all') return records
     
     const now = new Date()

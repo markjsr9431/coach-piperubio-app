@@ -58,7 +58,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [showAnthropometricModal, setShowAnthropometricModal] = useState(false)
   const [anthropometricMeasures, setAnthropometricMeasures] = useState<any[]>([])
-  const [showAnthropometricListModal, setShowAnthropometricListModal] = useState(false)
   const [showAnthropometricHistory, setShowAnthropometricHistory] = useState(false)
   const [anthropometricFormData, setAnthropometricFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -299,7 +298,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
         if (clientData.email && auth.currentUser && auth.currentUser.email?.toLowerCase() === clientData.email.toLowerCase()) {
           try {
             await updateProfile(auth.currentUser, {
-              displayName: updatedName,
+              displayName: formData.fullName.trim(),
               photoURL: photoUrl || undefined
             })
           } catch (error) {
@@ -314,7 +313,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           const userDoc = await getDoc(usersRef)
           if (userDoc.exists()) {
             await updateDoc(usersRef, {
-              displayName: updatedName,
+              displayName: formData.fullName.trim(),
               email: formData.email.trim().toLowerCase(),
               updatedAt: new Date().toISOString()
             })

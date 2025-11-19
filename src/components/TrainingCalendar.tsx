@@ -187,20 +187,6 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
     return classes.join(' ')
   }
 
-  // Función para obtener el título del tooltip
-  const getDayTitle = (date: Date): string => {
-    const dateKey = date.toISOString().split('T')[0]
-    const dayRecord = records.get(dateKey)
-    
-    if (!dayRecord) return ''
-    
-    const activities: string[] = []
-    if (dayRecord.hasWorkout) activities.push('Entrenamiento')
-    if (dayRecord.hasFeedback) activities.push('Encuesta')
-    if (dayRecord.hasLoadEffort) activities.push('Carga/Esfuerzo')
-    
-    return activities.length > 0 ? activities.join(', ') : ''
-  }
 
   if (loading) {
     return (
@@ -312,12 +298,6 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
           const dayRecord = records.get(dateKey)
           
           if (!dayRecord) return null
-          
-          const hasMultiple = [
-            dayRecord.hasWorkout,
-            dayRecord.hasFeedback,
-            dayRecord.hasLoadEffort
-          ].filter(Boolean).length > 1
           
           return (
             <div className="flex justify-center items-center gap-0.5 mt-1">
