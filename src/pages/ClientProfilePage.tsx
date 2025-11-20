@@ -5,6 +5,9 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import TopBanner from '../components/TopBanner'
 import ClientInfoSection from '../components/ClientInfoSection'
+import TrainingCalendar from '../components/TrainingCalendar'
+import ClientFeedbackCharts from '../components/ClientFeedbackCharts'
+import RMAndPRSection from '../components/RMAndPRSection'
 
 const ClientProfilePage = () => {
   const navigate = useNavigate()
@@ -13,6 +16,7 @@ const ClientProfilePage = () => {
   const { user } = useAuth()
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
   const [exportFunction, setExportFunction] = useState<(() => Promise<void>) | null>(null)
+  const [activeTab, setActiveTab] = useState<'informacion' | 'analisis'>('informacion')
 
   if (!clientId) {
     return null
@@ -85,14 +89,121 @@ const ClientProfilePage = () => {
             </p>
           </div>
 
-          {/* Componente compartido de información del cliente */}
-          {clientId && (
-            <ClientInfoSection
-              clientId={clientId}
-              showSaveButtons={true}
-              showProgressButton={true}
-              onExportReady={(exportFn) => setExportFunction(() => exportFn)}
-            />
+          {/* Sistema de Pestañas */}
+          <div className="mb-6">
+            <div className="flex flex-wrap gap-2 border-b border-slate-700/50 dark:border-gray-300/50">
+              <button
+                onClick={() => setActiveTab('informacion')}
+                className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
+                  activeTab === 'informacion'
+                    ? theme === 'dark'
+                      ? 'text-primary-400 border-primary-400'
+                      : 'text-primary-600 border-primary-600'
+                    : theme === 'dark'
+                    ? 'text-slate-400 border-transparent hover:text-slate-300'
+                    : 'text-gray-600 border-transparent hover:text-gray-900'
+                }`}
+              >
+                Información General
+              </button>
+              <button
+                onClick={() => setActiveTab('analisis')}
+                className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
+                  activeTab === 'analisis'
+                    ? theme === 'dark'
+                      ? 'text-primary-400 border-primary-400'
+                      : 'text-primary-600 border-primary-600'
+                    : theme === 'dark'
+                    ? 'text-slate-400 border-transparent hover:text-slate-300'
+                    : 'text-gray-600 border-transparent hover:text-gray-900'
+                }`}
+              >
+                Análisis de Rendimiento
+              </button>
+            </div>
+          </div>
+
+          {/* Contenido de Pestañas */}
+          {activeTab === 'informacion' && (
+            <div className="space-y-6">
+              {/* Componente compartido de información del cliente */}
+              {clientId && (
+                <ClientInfoSection
+                  clientId={clientId}
+                  showSaveButtons={true}
+                  onExportReady={(exportFn) => setExportFunction(() => exportFn)}
+                />
+              )}
+              
+              {/* Calendario de Actividad */}
+              {clientId && isCoach && (
+                <div className={`p-4 rounded-xl shadow-lg ${
+                  theme === 'dark' 
+                    ? 'bg-slate-800/80 border border-slate-700' 
+                    : 'bg-white border border-gray-200'
+                }`}>
+                  <h2 className={`text-lg sm:text-xl font-bold mb-4 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Calendario de Actividad
+                  </h2>
+                  <TrainingCalendar clientId={clientId} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'analisis' && (
+            <div className="space-y-6">
+              {/* Gráficas de Feedback */}
+              {isCoach && clientId && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className={`p-6 rounded-xl border ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800/50 border-slate-700' 
+                      : 'bg-white/50 border-gray-200'
+                  }`}
+                >
+                  <div className="mb-6">
+                    <h2 className={`text-xl font-bold mb-2 ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Análisis de Feedback
+                    </h2>
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                    }`}>
+                      Evolución de Sensación de Esfuerzo (RPE) y Estado de Ánimo
+                    </p>
+                  </div>
+                  <ClientFeedbackCharts clientId={clientId} />
+                </motion.div>
+              )}
+
+              {/* RM y PR */}
+              {isCoach && clientId && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className={`p-6 rounded-xl border ${
+                    theme === 'dark' 
+                      ? 'bg-slate-800/50 border-slate-700' 
+                      : 'bg-white/50 border-gray-200'
+                  }`}
+                >
+                  <h2 className={`text-xl font-bold mb-4 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Repetición Máxima (RM) y Récords Personales (PR)
+                  </h2>
+                  <RMAndPRSection clientId={clientId} isCoach={isCoach} />
+                </motion.div>
+              )}
+            </div>
           )}
         </motion.div>
       </div>

@@ -1,22 +1,19 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db, auth } from '../firebaseConfig'
 import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, getDocs, limit, where } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
-import TrainingCalendar from './TrainingCalendar'
-import ClientFeedbackCharts from './ClientFeedbackCharts'
 
 interface ClientInfoSectionProps {
   clientId: string
   showSaveButtons?: boolean
-  showProgressButton?: boolean
   onExportReady?: (exportFn: () => Promise<void>) => void
 }
 
-const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButton = true, onExportReady }: ClientInfoSectionProps) => {
+const ClientInfoSection = ({ clientId, showSaveButtons = false, onExportReady }: ClientInfoSectionProps) => {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const { user } = useAuth()
@@ -61,7 +58,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [showAnthropometricModal, setShowAnthropometricModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<'informacion' | 'progreso' | 'analisis'>('informacion')
   const [anthropometricMeasures, setAnthropometricMeasures] = useState<any[]>([])
   const [showAnthropometricHistory, setShowAnthropometricHistory] = useState(false)
   const [anthropometricFormData, setAnthropometricFormData] = useState({
@@ -79,64 +75,64 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   const [savingAnthropometric, setSavingAnthropometric] = useState(false)
 
   // Cargar datos del cliente
-  useEffect(() => {
-    const loadClientData = async () => {
-      if (!clientId || !isCoach) {
-        setLoading(false)
-        return
-      }
-
-      try {
-        const clientRef = doc(db, 'clients', clientId)
-        const clientDoc = await getDoc(clientRef)
-        
-        if (clientDoc.exists()) {
-          const data = clientDoc.data()
-          const startDate = data.subscriptionStartDate?.toDate 
-            ? data.subscriptionStartDate.toDate() 
-            : data.subscriptionStartDate 
-            ? new Date(data.subscriptionStartDate) 
-            : data.createdAt?.toDate 
-            ? data.createdAt.toDate() 
-            : data.createdAt 
-            ? new Date(data.createdAt) 
-            : null
-          const endDate = data.subscriptionEndDate?.toDate 
-            ? data.subscriptionEndDate.toDate() 
-            : data.subscriptionEndDate 
-            ? new Date(data.subscriptionEndDate) 
-            : null
-
-          setFormData({
-            fullName: data.name || '',
-            email: data.email || '',
-            phone: data.phone || '',
-            cedula: data.cedula || '',
-            rh: data.rh || '',
-            eps: data.eps || '',
-            profilePhoto: data.profilePhoto || null,
-            subscriptionStartDate: startDate ? startDate.toISOString().split('T')[0] : '',
-            subscriptionEndDate: endDate ? endDate.toISOString().split('T')[0] : '',
-            paymentMethod: data.paymentMethod || '',
-            paymentFrequency: data.paymentFrequency || '',
-            otherPaymentMethod: data.otherPaymentMethod || '',
-            isPaymentExempt: data.isPaymentExempt || false
-          })
-          if (data.profilePhoto) {
-            // Si es base64 (empieza con data:image) o URL
-            setPhotoPreview(data.profilePhoto)
-          }
-        }
-      } catch (error) {
-        console.error('Error loading client data:', error)
-        setError('Error al cargar los datos del cliente')
-      } finally {
-        setLoading(false)
-      }
+  const loadClientData = useCallback(async () => {
+    if (!clientId || !isCoach) {
+      setLoading(false)
+      return
     }
 
+    try {
+      const clientRef = doc(db, 'clients', clientId)
+      const clientDoc = await getDoc(clientRef)
+      
+      if (clientDoc.exists()) {
+        const data = clientDoc.data()
+        const startDate = data.subscriptionStartDate?.toDate 
+          ? data.subscriptionStartDate.toDate() 
+          : data.subscriptionStartDate 
+          ? new Date(data.subscriptionStartDate) 
+          : data.createdAt?.toDate 
+          ? data.createdAt.toDate() 
+          : data.createdAt 
+          ? new Date(data.createdAt) 
+          : null
+        const endDate = data.subscriptionEndDate?.toDate 
+          ? data.subscriptionEndDate.toDate() 
+          : data.subscriptionEndDate 
+          ? new Date(data.subscriptionEndDate) 
+          : null
+
+        setFormData({
+          fullName: data.name || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          cedula: data.cedula || '',
+          rh: data.rh || '',
+          eps: data.eps || '',
+          profilePhoto: data.profilePhoto || null,
+          subscriptionStartDate: startDate ? startDate.toISOString().split('T')[0] : '',
+          subscriptionEndDate: endDate ? endDate.toISOString().split('T')[0] : '',
+          paymentMethod: data.paymentMethod || '',
+          paymentFrequency: data.paymentFrequency || '',
+          otherPaymentMethod: data.otherPaymentMethod || '',
+          isPaymentExempt: data.isPaymentExempt || false
+        })
+        if (data.profilePhoto) {
+          // Si es base64 (empieza con data:image) o URL
+          setPhotoPreview(data.profilePhoto)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading client data:', error)
+      setError('Error al cargar los datos del cliente')
+    } finally {
+      setLoading(false)
+    }
+  }, [clientId, isCoach, db])
+
+  useEffect(() => {
     loadClientData()
-  }, [clientId, isCoach])
+  }, [loadClientData])
 
   // Cargar historial de pagos
   useEffect(() => {
@@ -179,63 +175,63 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   }, [clientId, isCoach])
 
   // Cargar último feedback diario
-  useEffect(() => {
+  const loadLastFeedback = useCallback(async () => {
     if (!clientId || !isCoach) {
       setLastFeedback(null)
       return
     }
 
-    const loadLastFeedback = async () => {
-      try {
-        // [DEBUG 1] Muestra el ID del cliente que se está buscando
-        console.log('DEBUG: Buscando último feedback para clientId:', clientId)
+    try {
+      // [DEBUG 1] Muestra el ID del cliente que se está buscando
+      console.log('DEBUG: Buscando último feedback para clientId:', clientId)
 
-        const feedbackRef = collection(db, 'dailyFeedback')
-        const q = query(
-          feedbackRef,
-          where('clientId', '==', clientId),
-          orderBy('date', 'desc'),
-          limit(1)
-        )
-        const snapshot = await getDocs(q)
+      const feedbackRef = collection(db, 'dailyFeedback')
+      const q = query(
+        feedbackRef,
+        where('clientId', '==', clientId),
+        orderBy('date', 'desc'),
+        limit(1)
+      )
+      const snapshot = await getDocs(q)
+      
+      // [DEBUG 2] Muestra el resultado de la consulta
+      console.log('DEBUG: Documentos de feedback encontrados:', snapshot.docs.length)
+      
+      if (!snapshot.empty) {
+        const feedbackDoc = snapshot.docs[0]
+        const data = feedbackDoc.data()
         
-        // [DEBUG 2] Muestra el resultado de la consulta
-        console.log('DEBUG: Documentos de feedback encontrados:', snapshot.docs.length)
-        
-        if (!snapshot.empty) {
-          const feedbackDoc = snapshot.docs[0]
-          const data = feedbackDoc.data()
-          
-          // Procesar fecha
-          let feedbackDate: Date
-          if (data.date?.toDate) {
-            feedbackDate = data.date.toDate()
-          } else if (data.date instanceof Timestamp) {
-            feedbackDate = data.date.toDate()
-          } else if (data.date) {
-            feedbackDate = new Date(data.date)
-          } else {
-            feedbackDate = new Date()
-          }
-          
-          setLastFeedback({
-            rpe: data.rpe || 0,
-            mood: data.mood || 0,
-            date: feedbackDate
-          })
+        // Procesar fecha
+        let feedbackDate: Date
+        if (data.date?.toDate) {
+          feedbackDate = data.date.toDate()
+        } else if (data.date instanceof Timestamp) {
+          feedbackDate = data.date.toDate()
+        } else if (data.date) {
+          feedbackDate = new Date(data.date)
         } else {
-          console.log('DEBUG: No se encontró feedback para este cliente.')
-          setLastFeedback(null)
+          feedbackDate = new Date()
         }
-      } catch (error) {
-        // [DEBUG 3] Captura y muestra cualquier error de Firebase/red
-        console.error('DEBUG ERROR: Error al cargar el último feedback:', error)
+        
+        setLastFeedback({
+          rpe: data.rpe || 0,
+          mood: data.mood || 0,
+          date: feedbackDate
+        })
+      } else {
+        console.log('DEBUG: No se encontró feedback para este cliente.')
         setLastFeedback(null)
       }
+    } catch (error) {
+      // [DEBUG 3] Captura y muestra cualquier error de Firebase/red
+      console.error('DEBUG ERROR: Error al cargar el último feedback:', error)
+      setLastFeedback(null)
     }
+  }, [clientId, db, isCoach])
 
+  useEffect(() => {
     loadLastFeedback()
-  }, [clientId, isCoach])
+  }, [loadLastFeedback])
 
   // Función helper para parsear fecha desde string YYYY-MM-DD en hora local
   // Evita el problema de que new Date("YYYY-MM-DD") se interprete como UTC
@@ -968,59 +964,9 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
         </div>
       )}
       
-      {/* Sistema de Pestañas */}
+      {/* Form - Layout Horizontal */}
       <div className="mt-8">
-        {/* Navegación de Pestañas */}
-        <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-700/50 dark:border-gray-300/50">
-          <button
-            onClick={() => setActiveTab('informacion')}
-            className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
-              activeTab === 'informacion'
-                ? theme === 'dark'
-                  ? 'text-primary-400 border-primary-400'
-                  : 'text-primary-600 border-primary-600'
-                : theme === 'dark'
-                ? 'text-slate-400 border-transparent hover:text-slate-300'
-                : 'text-gray-600 border-transparent hover:text-gray-900'
-            }`}
-          >
-            Información
-          </button>
-          <button
-            onClick={() => setActiveTab('progreso')}
-            className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
-              activeTab === 'progreso'
-                ? theme === 'dark'
-                  ? 'text-primary-400 border-primary-400'
-                  : 'text-primary-600 border-primary-600'
-                : theme === 'dark'
-                ? 'text-slate-400 border-transparent hover:text-slate-300'
-                : 'text-gray-600 border-transparent hover:text-gray-900'
-            }`}
-          >
-            Progreso
-          </button>
-          <button
-            onClick={() => setActiveTab('analisis')}
-            className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
-              activeTab === 'analisis'
-                ? theme === 'dark'
-                  ? 'text-primary-400 border-primary-400'
-                  : 'text-primary-600 border-primary-600'
-                : theme === 'dark'
-                ? 'text-slate-400 border-transparent hover:text-slate-300'
-                : 'text-gray-600 border-transparent hover:text-gray-900'
-            }`}
-          >
-            Análisis
-          </button>
-        </div>
-
-        {/* Contenido de Pestañas */}
-        {activeTab === 'informacion' && (
-          <div>
-            {/* Form - Layout Horizontal */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {/* Botón Información Personal */}
         <button
           onClick={() => setShowPersonalInfoModal(true)}
@@ -1424,60 +1370,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
 
             </div>
           </div>
-        )}
-
-        {activeTab === 'progreso' && (
-          <div>
-            {/* Sección Calendario de Actividad */}
-            {clientId && isCoach && (
-              <div className={`p-4 rounded-xl shadow-lg ${
-                theme === 'dark' 
-                  ? 'bg-slate-800/80 border border-slate-700' 
-                  : 'bg-white border border-gray-200'
-              }`}>
-                <h2 className={`text-lg sm:text-xl font-bold mb-4 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Calendario de Actividad
-                </h2>
-                <TrainingCalendar clientId={clientId} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'analisis' && (
-          <div>
-            {/* Sección de Gráficas de Feedback */}
-            {isCoach && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className={`p-6 rounded-xl border ${
-                  theme === 'dark' 
-                    ? 'bg-slate-800/50 border-slate-700' 
-                    : 'bg-white/50 border-gray-200'
-                }`}
-              >
-                <div className="mb-6">
-                  <h2 className={`text-xl font-bold mb-2 ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    Análisis de Feedback
-                  </h2>
-                  <p className={`text-sm ${
-                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                  }`}>
-                    Evolución de Sensación de Esfuerzo (RPE) y Estado de Ánimo
-                  </p>
-                </div>
-                <ClientFeedbackCharts clientId={clientId} />
-              </motion.div>
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Modal de Medidas Antropométricas */}
       {showAnthropometricModal && (
@@ -2036,22 +1928,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
         </div>
       )}
 
-      {/* Botón para ver gráficas de progreso - Solo para coach */}
-      {clientId && isCoach && showProgressButton && (
-        <div className="mt-6">
-          <button
-            onClick={() => {
-              navigate(`/client/${clientId}/progress`)
-            }}
-            className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-purple-900 transition-all flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            Ver Gráficas de Progreso
-          </button>
-        </div>
-      )}
 
       {/* Error */}
       {error && (

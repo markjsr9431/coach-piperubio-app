@@ -4,7 +4,26 @@ import 'react-calendar/dist/Calendar.css'
 import { useTheme } from '../contexts/ThemeContext'
 import { db } from '../firebaseConfig'
 import { doc, getDoc } from 'firebase/firestore'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+import { Bar } from 'react-chartjs-2'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+)
 
 interface TrainingCalendarProps {
   clientId: string
@@ -24,8 +43,7 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
   const [records, setRecords] = useState<Map<string, DayRecord>>(new Map())
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [showLoadModal, setShowLoadModal] = useState(false)
-  const [dayLoadEffort, setDayLoadEffort] = useState<any>(null)
+  const [selectedDayData, setSelectedDayData] = useState<any>(null)
 
   useEffect(() => {
     const loadData = async () => {
@@ -151,19 +169,16 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
               })
               
               if (dayRecord) {
-                setDayLoadEffort(dayRecord)
+                setSelectedDayData(dayRecord)
               } else {
-                setDayLoadEffort(null)
+                setSelectedDayData(null)
               }
             } else {
-              setDayLoadEffort(null)
+              setSelectedDayData(null)
             }
-            
-            setShowLoadModal(true)
           } catch (error) {
             console.error('Error loading load/effort record:', error)
-            setDayLoadEffort(null)
-            setShowLoadModal(true)
+            setSelectedDayData(null)
           }
         }}
         tileContent={({ date, view }) => {
@@ -254,140 +269,165 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
         }
       `}</style>
       
-      {/* Modal de Detalles de Carga */}
-      <AnimatePresence>
-        {showLoadModal && selectedDate && (
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4"
-            onClick={() => setShowLoadModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              onClick={(e) => e.stopPropagation()}
-              className={`w-full max-w-md rounded-2xl shadow-2xl ${
-                theme === 'dark' ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
-              } p-6`}
+      {/* Gráfico de Barras de Carga del Día Seleccionado */}
+      {selectedDate && selectedDayData && selectedDayData.implementos && selectedDayData.implementos.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mt-6 p-4 rounded-xl shadow-lg ${
+            theme === 'dark' ? 'bg-slate-800/80 border border-slate-700' : 'bg-white border border-gray-200'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-lg font-bold ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
+              Carga de Implementos - {selectedDate.toLocaleDateString('es-ES', { 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+              })}
+            </h3>
+            <button
+              onClick={() => {
+                setSelectedDate(null)
+                setSelectedDayData(null)
+              }}
+              className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark' 
+                  ? 'hover:bg-slate-700 text-slate-300' 
+                  : 'hover:bg-gray-100 text-gray-600'
+              }`}
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className={`text-xl font-bold ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
-                  {selectedDate.toLocaleDateString('es-ES', { 
-                    weekday: 'long', 
-                    day: 'numeric', 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
-                </h3>
-                <button
-                  onClick={() => setShowLoadModal(false)}
-                  className={`p-2 rounded-lg transition-colors ${
-                    theme === 'dark' 
-                      ? 'hover:bg-slate-700 text-slate-300' 
-                      : 'hover:bg-gray-100 text-gray-600'
-                  }`}
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                {dayLoadEffort ? (
-                  <div className={`p-4 rounded-lg ${
-                    theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/50' : 'bg-orange-50 border border-orange-200'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                      <span className={`font-semibold text-lg ${
-                        theme === 'dark' ? 'text-orange-300' : 'text-orange-700'
-                      }`}>
-                        Registro de Carga/Implementos
-                      </span>
-                    </div>
-                    {dayLoadEffort.implementos && dayLoadEffort.implementos.length > 0 ? (
-                      <div className="space-y-3">
-                        <div>
-                          <span className={`text-sm font-medium ${
-                            theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                          }`}>
-                            Implementos utilizados:
-                          </span>
-                          <div className="mt-3 space-y-2">
-                            {dayLoadEffort.implementos.map((impl: any, index: number) => (
-                              <div key={index} className={`p-3 rounded-lg border ${
-                                theme === 'dark' ? 'bg-slate-700/50 border-slate-600' : 'bg-white border-gray-200'
-                              }`}>
-                                <div className={`font-semibold text-base mb-1 ${
-                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                }`}>
-                                  {impl.implement || 'Implemento'}
-                                </div>
-                                {impl.load && (
-                                  <div className={`text-sm ${
-                                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                                  }`}>
-                                    <span className="font-medium">Carga:</span> {impl.load}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {dayLoadEffort.date && (
-                          <div className={`text-xs pt-2 border-t ${
-                            theme === 'dark' ? 'text-slate-400 border-slate-600' : 'text-gray-500 border-gray-300'
-                          }`}>
-                            <span className="font-medium">Registrado el:</span>{' '}
-                            {(() => {
-                              let recordDate: Date
-                              if (typeof dayLoadEffort.date === 'number') {
-                                recordDate = new Date(dayLoadEffort.date)
-                              } else if (dayLoadEffort.date.toDate) {
-                                recordDate = dayLoadEffort.date.toDate()
-                              } else {
-                                recordDate = new Date(dayLoadEffort.date)
-                              }
-                              return recordDate.toLocaleString('es-ES', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className={`text-sm ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                      }`}>
-                        No hay implementos registrados para este día
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className={`text-center py-8 ${
-                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                  }`}>
-                    <div className="mb-2">
-                      <svg className="w-12 h-12 mx-auto text-orange-500/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <p className="font-medium">No hay registro de carga para esta fecha</p>
-                    <p className="text-xs mt-1 opacity-75">El cliente aún no ha registrado implementos para este día</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-        )}
-      </AnimatePresence>
+          
+          <div style={{ height: '300px', position: 'relative' }}>
+            <Bar
+              data={{
+                labels: selectedDayData.implementos.map((impl: any, index: number) => 
+                  impl.implement || `Implemento ${index + 1}`
+                ),
+                datasets: [
+                  {
+                    label: 'Carga (kg)',
+                    data: selectedDayData.implementos.map((impl: any) => {
+                      // Extraer el valor numérico de la carga si es un string
+                      if (typeof impl.load === 'string') {
+                        const match = impl.load.match(/(\d+\.?\d*)/)
+                        return match ? parseFloat(match[1]) : 0
+                      }
+                      return impl.load || 0
+                    }),
+                    backgroundColor: theme === 'dark' 
+                      ? 'rgba(249, 115, 22, 0.8)' 
+                      : 'rgba(249, 115, 22, 0.6)',
+                    borderColor: theme === 'dark' 
+                      ? 'rgba(249, 115, 22, 1)' 
+                      : 'rgba(249, 115, 22, 1)',
+                    borderWidth: 2,
+                  },
+                ],
+              }}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: true,
+                    labels: {
+                      color: theme === 'dark' ? '#e2e8f0' : '#1e293b',
+                      font: {
+                        size: 12
+                      }
+                    }
+                  },
+                  tooltip: {
+                    backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    titleColor: theme === 'dark' ? '#e2e8f0' : '#1e293b',
+                    bodyColor: theme === 'dark' ? '#e2e8f0' : '#1e293b',
+                    borderColor: theme === 'dark' ? '#475569' : '#cbd5e1',
+                    borderWidth: 1,
+                    padding: 12,
+                  }
+                },
+                scales: {
+                  x: {
+                    ticks: {
+                      color: theme === 'dark' ? '#94a3b8' : '#64748b',
+                      font: {
+                        size: 11
+                      }
+                    },
+                    grid: {
+                      color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(100, 116, 139, 0.1)'
+                    }
+                  },
+                  y: {
+                    ticks: {
+                      color: theme === 'dark' ? '#94a3b8' : '#64748b',
+                      font: {
+                        size: 11
+                      }
+                    },
+                    grid: {
+                      color: theme === 'dark' ? 'rgba(148, 163, 184, 0.1)' : 'rgba(100, 116, 139, 0.1)'
+                    },
+                    beginAtZero: true
+                  }
+                }
+              }}
+            />
+          </div>
+        </motion.div>
+      )}
+      
+      {/* Mensaje cuando no hay datos */}
+      {selectedDate && (!selectedDayData || !selectedDayData.implementos || selectedDayData.implementos.length === 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mt-6 p-4 rounded-xl shadow-lg ${
+            theme === 'dark' ? 'bg-slate-800/80 border border-slate-700' : 'bg-white border border-gray-200'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h3 className={`text-lg font-bold ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
+              {selectedDate.toLocaleDateString('es-ES', { 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+              })}
+            </h3>
+            <button
+              onClick={() => {
+                setSelectedDate(null)
+                setSelectedDayData(null)
+              }}
+              className={`p-2 rounded-lg transition-colors ${
+                theme === 'dark' 
+                  ? 'hover:bg-slate-700 text-slate-300' 
+                  : 'hover:bg-gray-100 text-gray-600'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className={`text-center py-4 ${
+            theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+          }`}>
+            <p className="font-medium">No hay registro de carga para esta fecha</p>
+            <p className="text-xs mt-1 opacity-75">El cliente aún no ha registrado implementos para este día</p>
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   )
 }

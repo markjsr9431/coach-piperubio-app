@@ -132,7 +132,6 @@ const ClientWorkoutPage = () => {
                 <ClientInfoSection
                   clientId={clientId}
                   showSaveButtons={false} // No save buttons on this page
-                  showProgressButton={true} // Show progress button
                 />
               </div>
             )}
