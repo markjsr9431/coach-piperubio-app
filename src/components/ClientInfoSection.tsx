@@ -7,6 +7,7 @@ import { db, auth } from '../firebaseConfig'
 import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, getDocs } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
 import TrainingCalendar from './TrainingCalendar'
+import ClientFeedbackCharts from './ClientFeedbackCharts'
 
 interface ClientInfoSectionProps {
   clientId: string
@@ -997,14 +998,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                       >
                         {photoPreview ? 'Cambiar Foto' : 'Subir Foto'}
                       </label>
-                      <p className={`text-xs mt-2 ${
-                        theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                      }`}>
-                        La imagen se comprimirá automáticamente (calidad 75%). 
-                        <br />
-                        <span className="font-semibold">Recomendación:</span> Para optimizar el almacenamiento, considera usar servicios externos como Cloudinary, Firebase Storage o Imgur. 
-                        Comprime la imagen antes de subir (formato JPEG con calidad 70-80%) para reducir el consumo de espacio.
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -1434,6 +1427,34 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* Sección de Gráficas de Feedback */}
+      {isCoach && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className={`mt-8 p-6 rounded-xl border ${
+            theme === 'dark' 
+              ? 'bg-slate-800/50 border-slate-700' 
+              : 'bg-white/50 border-gray-200'
+          }`}
+        >
+          <div className="mb-6">
+            <h2 className={`text-xl font-bold mb-2 ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
+              Análisis de Feedback
+            </h2>
+            <p className={`text-sm ${
+              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+            }`}>
+              Evolución de Sensación de Esfuerzo (RPE) y Estado de Ánimo
+            </p>
+          </div>
+          <ClientFeedbackCharts clientId={clientId} />
+        </motion.div>
       )}
 
       {/* Modal de Gestión de Suscripción y Pagos */}

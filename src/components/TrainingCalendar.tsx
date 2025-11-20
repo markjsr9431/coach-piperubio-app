@@ -40,30 +40,30 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
       try {
         const recordsMap = new Map<string, DayRecord>()
 
-        // 1. Cargar entrenamientos desde progress/summary
-        try {
-          const progressRef = doc(db, 'clients', clientId, 'progress', 'summary')
-          const progressDoc = await getDoc(progressRef)
-          if (progressDoc.exists()) {
-            const progressData = progressDoc.data()
-            const dailyProgress = progressData.dailyProgress || {}
-            
-            Object.keys(dailyProgress).forEach((dateKey) => {
-              if (dailyProgress[dateKey] === true) {
-                const existing = recordsMap.get(dateKey) || {
-                  date: dateKey,
-                  hasWorkout: false,
-                  hasFeedback: false,
-                  hasLoadEffort: false
-                }
-                existing.hasWorkout = true
-                recordsMap.set(dateKey, existing)
-              }
-            })
-          }
-        } catch (error) {
-          console.error('Error loading workout progress:', error)
-        }
+        // 1. Cargar entrenamientos desde progress/summary (comentado - ya no se usa)
+        // try {
+        //   const progressRef = doc(db, 'clients', clientId, 'progress', 'summary')
+        //   const progressDoc = await getDoc(progressRef)
+        //   if (progressDoc.exists()) {
+        //     const progressData = progressDoc.data()
+        //     const dailyProgress = progressData.dailyProgress || {}
+        //     
+        //     Object.keys(dailyProgress).forEach((dateKey) => {
+        //       if (dailyProgress[dateKey] === true) {
+        //         const existing = recordsMap.get(dateKey) || {
+        //           date: dateKey,
+        //           hasWorkout: false,
+        //           hasFeedback: false,
+        //           hasLoadEffort: false
+        //         }
+        //         existing.hasWorkout = true
+        //         recordsMap.set(dateKey, existing)
+        //       }
+        //     })
+        //   }
+        // } catch (error) {
+        //   console.error('Error loading workout progress:', error)
+        // }
 
         // 2. Cargar feedback diario desde Firestore
         try {
@@ -101,9 +101,8 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
               hasFeedback: false,
               hasLoadEffort: false
             }
-            // Marcar como feedback Y como entrenamiento
+            // Marcar como feedback
             existing.hasFeedback = true
-            existing.hasWorkout = true
             recordsMap.set(dateKey, existing)
           })
         } catch (error) {
@@ -169,20 +168,21 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
     
     const classes: string[] = []
     
-    // Determinar qué tipo de registro tiene
-    const recordCount = [
-      dayRecord.hasWorkout,
-      dayRecord.hasFeedback,
-      dayRecord.hasLoadEffort
-    ].filter(Boolean).length
+    // Nueva lógica de colores basada en Encuesta y Carga
+    const hasFeedback = dayRecord.hasFeedback
+    const hasLoadEffort = dayRecord.hasLoadEffort
     
-    if (recordCount === 1) {
-      if (dayRecord.hasWorkout) classes.push('has-workout')
-      if (dayRecord.hasFeedback) classes.push('has-feedback')
-      if (dayRecord.hasLoadEffort) classes.push('has-load-effort')
-    } else if (recordCount > 1) {
-      classes.push('has-multiple')
+    if (hasFeedback && hasLoadEffort) {
+      // Ambos: Encuesta y Carga
+      classes.push('has-both')
+    } else if (hasFeedback && !hasLoadEffort) {
+      // Solo Encuesta
+      classes.push('has-feedback-only')
+    } else if (!hasFeedback && hasLoadEffort) {
+      // Solo Carga
+      classes.push('has-load-effort-only')
     }
+    // Si no hay ninguno, no se agrega clase (sin color)
     
     return classes.join(' ')
   }
@@ -301,12 +301,6 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
           
           return (
             <div className="flex justify-center items-center gap-0.5 mt-1">
-              {dayRecord.hasWorkout && (
-                <div 
-                  className="w-1.5 h-1.5 rounded-full bg-blue-500"
-                  title="Entrenamiento"
-                />
-              )}
               {dayRecord.hasFeedback && (
                 <div 
                   className="w-1.5 h-1.5 rounded-full bg-green-500"
@@ -335,21 +329,21 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
         </h4>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500 flex-shrink-0"></div>
-            <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-              Entrenamiento
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-              Encuesta
+              Solo Encuesta (Esfuerzo/Satisfacción)
             </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-orange-500 flex-shrink-0"></div>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-              Carga/Esfuerzo
+              Solo Carga (Implementos/Registro)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0"></div>
+            <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
+              Encuesta y Carga (Completo)
             </span>
           </div>
         </div>
@@ -377,19 +371,15 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
           background: ${theme === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)'};
         }
         
-        .react-calendar__tile.has-workout {
-          background: ${theme === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.15)'};
-        }
-        
-        .react-calendar__tile.has-feedback {
+        .react-calendar__tile.has-feedback-only {
           background: ${theme === 'dark' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(34, 197, 94, 0.15)'};
         }
         
-        .react-calendar__tile.has-load-effort {
+        .react-calendar__tile.has-load-effort-only {
           background: ${theme === 'dark' ? 'rgba(249, 115, 22, 0.3)' : 'rgba(249, 115, 22, 0.15)'};
         }
         
-        .react-calendar__tile.has-multiple {
+        .react-calendar__tile.has-both {
           background: ${theme === 'dark' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(168, 85, 247, 0.15)'};
         }
         
@@ -466,21 +456,6 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
                   
                   return (
                     <>
-                      {dayRecord?.hasWorkout && (
-                        <div className={`p-4 rounded-lg ${
-                          theme === 'dark' ? 'bg-blue-500/20 border border-blue-500/50' : 'bg-blue-50 border border-blue-200'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span className={`font-semibold ${
-                              theme === 'dark' ? 'text-blue-300' : 'text-blue-700'
-                            }`}>
-                              Entrenamiento completado
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
                       {dayLoadEffort ? (
                         <div className={`p-4 rounded-lg ${
                           theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/50' : 'bg-orange-50 border border-orange-200'

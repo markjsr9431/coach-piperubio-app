@@ -76,6 +76,9 @@ const HomePage = () => {
   const [rmFilter, setRmFilter] = useState<boolean | null>(null)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [hasFeedbackToday, setHasFeedbackToday] = useState(false)
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set())
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [deletingClients, setDeletingClients] = useState(false)
   
   // Verificar si es el coach específico
   const isCoach = user?.email?.toLowerCase() === 'piperubiocoach@gmail.com'
@@ -567,6 +570,53 @@ const HomePage = () => {
     }
   }
 
+  const handleDeleteSelectedClients = async () => {
+    if (selectedClients.size === 0) return
+
+    const count = selectedClients.size
+    const confirmMessage = `¿Estás seguro de que deseas eliminar ${count} ${count === 1 ? 'cliente' : 'clientes'}?`
+    
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+
+    setDeletingClients(true)
+    const clientIds = Array.from(selectedClients)
+    let successCount = 0
+    let errorCount = 0
+
+    try {
+      // Eliminar clientes en paralelo
+      const deletePromises = clientIds.map(async (clientId) => {
+        try {
+          await deleteDoc(doc(db, 'clients', clientId))
+          successCount++
+        } catch (error: any) {
+          console.error(`Error al eliminar cliente ${clientId}:`, error)
+          errorCount++
+        }
+      })
+
+      await Promise.all(deletePromises)
+
+      // Limpiar selección y desactivar modo selección
+      setSelectedClients(new Set())
+      setSelectionMode(false)
+
+      // Mostrar resultado
+      if (errorCount === 0) {
+        alert(`Se eliminaron exitosamente ${successCount} ${successCount === 1 ? 'cliente' : 'clientes'}`)
+      } else {
+        alert(`Se eliminaron ${successCount} ${successCount === 1 ? 'cliente' : 'clientes'}. ${errorCount} ${errorCount === 1 ? 'error' : 'errores'} ocurrieron.`)
+      }
+    } catch (error: any) {
+      console.error('Error durante eliminación en lote:', error)
+      alert(`Error durante la eliminación: ${error.message || 'Error desconocido'}`)
+    } finally {
+      setDeletingClients(false)
+    }
+  }
+
   // Función helper para calcular días hasta próximo pago
   const calculateDaysUntilPayment = (subscriptionEndDate: any): number | null => {
     if (!subscriptionEndDate) return null
@@ -706,10 +756,10 @@ const HomePage = () => {
       <TopBanner />
       
       {/* Espacio para el banner fijo */}
-      <div className="h-24 sm:h-32"></div>
+      <div className="h-20 sm:h-24"></div>
 
       {/* Contenido Principal */}
-      <div className="pt-4 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="pt-6 pb-12 px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -762,12 +812,12 @@ const HomePage = () => {
               transition={{ delay: 0.45 }}
               className="mb-6"
             >
-              <div className={`max-w-7xl mx-auto p-4 rounded-xl ${
+              <div className={`max-w-7xl mx-auto p-3 rounded-xl ${
                 theme === 'dark' ? 'bg-slate-800/50 border border-slate-700' : 'bg-white/50 border border-gray-200'
               }`}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-row gap-3">
                   {/* Búsqueda por Nombre */}
-                  <div className="relative">
+                  <div className="relative lg:flex-1">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -787,11 +837,11 @@ const HomePage = () => {
                   </div>
 
                   {/* Filtro de Estado */}
-                  <div>
+                  <div className="sm:col-span-1 lg:col-span-1">
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value as 'active' | 'inactive' | 'pending' | 'all')}
-                      className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors text-sm ${
                         theme === 'dark'
                           ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
                           : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
@@ -805,7 +855,7 @@ const HomePage = () => {
                   </div>
 
                   {/* Ordenamiento */}
-                  <div>
+                  <div className="sm:col-span-1 lg:col-span-1">
                     <select
                       value={sortBy === 'none' ? 'name' : sortBy === 'createdAt' ? (sortOrder === 'desc' ? 'recent' : 'oldest') : sortBy}
                       onChange={(e) => {
@@ -823,7 +873,7 @@ const HomePage = () => {
                           setSortBy('none')
                         }
                       }}
-                      className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors text-sm ${
                         theme === 'dark'
                           ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
                           : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
@@ -836,7 +886,7 @@ const HomePage = () => {
                   </div>
 
                   {/* Filtro por RM */}
-                  <div>
+                  <div className="sm:col-span-2 lg:col-span-1">
                     <select
                       value={rmFilter === null ? 'all' : rmFilter ? 'withRM' : 'withoutRM'}
                       onChange={(e) => {
@@ -849,7 +899,7 @@ const HomePage = () => {
                           setRmFilter(false)
                         }
                       }}
-                      className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
+                      className={`w-full px-3 py-2 rounded-lg border transition-colors text-sm ${
                         theme === 'dark'
                           ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
                           : 'bg-white border-gray-300 text-gray-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
@@ -1041,6 +1091,60 @@ const HomePage = () => {
                 </svg>
                 Importar Clientes
               </motion.button>
+
+              {/* Botón Modo Selección */}
+              <motion.button
+                onClick={() => {
+                  setSelectionMode(!selectionMode)
+                  if (selectionMode) {
+                    setSelectedClients(new Set())
+                  }
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`${
+                  selectionMode
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-800'
+                    : 'bg-gradient-to-r from-gray-600 to-gray-800'
+                } text-white px-4 py-2 sm:px-8 sm:py-4 rounded-lg shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg border-2 ${
+                  theme === 'dark' ? 'border-gray-400' : 'border-gray-700'
+                }`}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {selectionMode ? 'Cancelar Selección' : 'Seleccionar'}
+              </motion.button>
+
+              {/* Botón Eliminar Seleccionados */}
+              {selectionMode && selectedClients.size > 0 && (
+                <motion.button
+                  onClick={handleDeleteSelectedClients}
+                  disabled={deletingClients}
+                  whileHover={{ scale: deletingClients ? 1 : 1.05 }}
+                  whileTap={{ scale: deletingClients ? 1 : 0.95 }}
+                  className={`bg-gradient-to-r from-red-600 to-red-800 text-white px-4 py-2 sm:px-8 sm:py-4 rounded-lg shadow-lg hover:shadow-2xl transition-all duration-200 flex items-center gap-2 sm:gap-3 font-semibold text-sm sm:text-lg border-2 ${
+                    theme === 'dark' ? 'border-red-400' : 'border-red-700'
+                  } ${deletingClients ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {deletingClients ? (
+                    <>
+                      <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Eliminando...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Eliminar ({selectedClients.size})
+                    </>
+                  )}
+                </motion.button>
+              )}
             </motion.div>
           )}
 
@@ -1197,24 +1301,53 @@ const HomePage = () => {
                             theme === 'dark' 
                               ? 'bg-slate-800/80 border border-slate-700' 
                               : 'bg-white border border-gray-200'
-                          }`}
+                          } ${selectionMode && selectedClients.has(client.id) ? 'ring-2 ring-primary-500' : ''}`}
                         >
-                          {/* Botón eliminar - Solo para coach */}
-                          <button
-                            onClick={(e) => handleDeleteClient(e, client.id)}
-                            className={`absolute top-2 right-2 p-1.5 rounded-lg transition-colors ${
-                              theme === 'dark'
-                                ? 'hover:bg-red-500/20 text-red-400'
-                                : 'hover:bg-red-50 text-red-600'
-                            }`}
-                            title={t('dashboard.deleteClient')}
-                            aria-label={t('dashboard.deleteClient')}
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                          <div className="pr-6">
+                          {/* Checkbox de selección - Solo visible en modo selección */}
+                          {selectionMode && isCoach && (
+                            <div
+                              className="absolute top-2 left-2 z-10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedClients.has(client.id)}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  const newSelected = new Set(selectedClients)
+                                  if (e.target.checked) {
+                                    newSelected.add(client.id)
+                                  } else {
+                                    newSelected.delete(client.id)
+                                  }
+                                  setSelectedClients(newSelected)
+                                }}
+                                className={`w-5 h-5 rounded border-2 cursor-pointer ${
+                                  theme === 'dark'
+                                    ? 'border-slate-500 bg-slate-700 checked:bg-primary-600 checked:border-primary-600'
+                                    : 'border-gray-300 bg-white checked:bg-primary-600 checked:border-primary-600'
+                                } focus:ring-2 focus:ring-primary-500 focus:ring-offset-2`}
+                              />
+                            </div>
+                          )}
+                          {/* Botón eliminar - Solo para coach, oculto en modo selección */}
+                          {!selectionMode && isCoach && (
+                            <button
+                              onClick={(e) => handleDeleteClient(e, client.id)}
+                              className={`absolute top-2 right-2 p-1.5 rounded-lg transition-colors ${
+                                theme === 'dark'
+                                  ? 'hover:bg-red-500/20 text-red-400'
+                                  : 'hover:bg-red-50 text-red-600'
+                              }`}
+                              title={t('dashboard.deleteClient')}
+                              aria-label={t('dashboard.deleteClient')}
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                          <div className={`${selectionMode ? 'pl-8' : 'pr-6'}`}>
                             <div className="flex items-center gap-2 mb-1">
                               <h3 
                                 className={`text-sm font-bold line-clamp-2 flex-1 ${

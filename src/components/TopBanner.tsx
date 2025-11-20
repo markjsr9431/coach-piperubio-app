@@ -374,7 +374,7 @@ const TopBanner = () => {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.25, duration: 0.5 }}
-              className="flex flex-col items-start"
+              className="flex flex-col items-start pl-4 sm:pl-5"
             >
               {(() => {
                 const today = new Date()
