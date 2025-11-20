@@ -36,7 +36,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     subscriptionEndDate: '',
     paymentMethod: '' as 'efectivo' | 'transferencia' | 'tarjeta_debito' | 'tarjeta_credito' | 'otro' | '',
     paymentFrequency: '' as 'mensual' | 'trimestral' | 'cuotas' | 'dias' | 'por_clases' | '',
-    otherPaymentMethod: ''
+    otherPaymentMethod: '',
+    isPaymentExempt: false
   })
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -54,6 +55,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     otherPaymentMethod: ''
   })
   const [savingPayment, setSavingPayment] = useState(false)
+  const [savingSubscription, setSavingSubscription] = useState(false)
   const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [showAnthropometricModal, setShowAnthropometricModal] = useState(false)
@@ -114,7 +116,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
             subscriptionEndDate: endDate ? endDate.toISOString().split('T')[0] : '',
             paymentMethod: data.paymentMethod || '',
             paymentFrequency: data.paymentFrequency || '',
-            otherPaymentMethod: data.otherPaymentMethod || ''
+            otherPaymentMethod: data.otherPaymentMethod || '',
+            isPaymentExempt: data.isPaymentExempt || false
           })
           if (data.profilePhoto) {
             // Si es base64 (empieza con data:image) o URL
@@ -171,6 +174,74 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
 
     return () => unsubscribe()
   }, [clientId, isCoach])
+
+  // Función helper para parsear fecha desde string YYYY-MM-DD en hora local
+  // Evita el problema de que new Date("YYYY-MM-DD") se interprete como UTC
+  const parseLocalDate = (dateString: string): Date => {
+    if (!dateString) {
+      return new Date()
+    }
+    // Parsear manualmente año, mes y día desde el string
+    const [year, month, day] = dateString.split('-').map(Number)
+    // Crear fecha directamente en hora local a mediodía (12:00 PM)
+    // month - 1 porque los meses en JavaScript son 0-indexados (0 = enero, 11 = diciembre)
+    return new Date(year, month - 1, day, 12, 0, 0, 0)
+  }
+
+  // Función helper para normalizar fecha y evitar desfase de timezone
+  const normalizeDate = (dateInput: any): Date => {
+    let date: Date
+    if (dateInput?.toDate) {
+      // Es un Timestamp de Firestore
+      date = dateInput.toDate()
+    } else if (dateInput instanceof Date) {
+      date = new Date(dateInput)
+    } else if (typeof dateInput === 'number') {
+      date = new Date(dateInput)
+    } else {
+      date = new Date()
+    }
+    // Normalizar a mediodía para evitar desfase de timezone
+    date.setHours(12, 0, 0, 0)
+    return date
+  }
+
+  // Función helper para calcular el estado del cliente basado en pagos y fecha de suscripción
+  const calculateClientStatus = (subscriptionEndDate: string | null, payments: any[], isPaymentExempt?: boolean): 'pending' | 'active' | 'inactive' => {
+    // Si el cliente está exento de pago, siempre está activo
+    if (isPaymentExempt === true) {
+      return 'active'
+    }
+    
+    // Si no tiene pagos registrados, está pendiente
+    if (!payments || payments.length === 0) {
+      return 'pending'
+    }
+
+    // Si tiene pagos pero no tiene fecha de fin de suscripción, considerar activo
+    if (!subscriptionEndDate) {
+      return 'active'
+    }
+
+    // Convertir subscriptionEndDate a Date
+    const endDate = new Date(subscriptionEndDate)
+    
+    if (isNaN(endDate.getTime())) {
+      // Si no se puede convertir la fecha, considerar activo si tiene pagos
+      return 'active'
+    }
+
+    // Comparar con fecha actual
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    endDate.setHours(0, 0, 0, 0)
+
+    if (now <= endDate) {
+      return 'active'
+    } else {
+      return 'inactive'
+    }
+  }
 
   // Exponer función de exportación
   useEffect(() => {
@@ -270,13 +341,17 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       
       if (clientDoc.exists()) {
         const clientData = clientDoc.data()
+        // Parsear fechas directamente en hora local a mediodía para evitar desfase de timezone
         const subscriptionStartDate = formData.subscriptionStartDate 
-          ? new Date(formData.subscriptionStartDate) 
+          ? parseLocalDate(formData.subscriptionStartDate)
           : null
         const subscriptionEndDate = formData.subscriptionEndDate 
-          ? new Date(formData.subscriptionEndDate) 
+          ? parseLocalDate(formData.subscriptionEndDate)
           : null
 
+        // Recalcular estado del cliente basado en pagos y nueva fecha de suscripción
+        const newStatus = calculateClientStatus(formData.subscriptionEndDate, payments, formData.isPaymentExempt)
+        
         await updateDoc(clientRef, {
           name: formData.fullName.trim(),
           email: formData.email.trim().toLowerCase(),
@@ -290,6 +365,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           paymentMethod: formData.paymentMethod || null,
           paymentFrequency: formData.paymentFrequency || null,
           otherPaymentMethod: formData.otherPaymentMethod || null,
+          isPaymentExempt: formData.isPaymentExempt,
+          status: newStatus,
           updatedAt: serverTimestamp(),
           updatedBy: user?.email || ''
         })
@@ -365,7 +442,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     setError(null)
 
     try {
-      const paymentDate = new Date(paymentFormData.date)
+      // Parsear fecha directamente en hora local a mediodía para evitar desfase de timezone
+      const paymentDate = parseLocalDate(paymentFormData.date)
       const paymentsRef = collection(db, 'clients', clientId, 'payments')
       
       const paymentData: any = {
@@ -383,6 +461,21 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       }
       
       await addDoc(paymentsRef, paymentData)
+
+      // Recalcular y actualizar estado del cliente
+      const updatedPaymentsSnapshot = await getDocs(paymentsRef)
+      const updatedPayments = updatedPaymentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      const newStatus = calculateClientStatus(formData.subscriptionEndDate, updatedPayments, formData.isPaymentExempt)
+      
+      // Actualizar estado en el documento del cliente
+      const clientRef = doc(db, 'clients', clientId)
+      await updateDoc(clientRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      })
 
       // Resetear formulario
       setPaymentFormData({
@@ -412,6 +505,102 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     }
   }
 
+  // Función para registrar pago directamente desde el modal de suscripción
+  const handleRegisterPayment = async () => {
+    if (!clientId || !isCoach) return
+
+    // Validar campos requeridos
+    if (!formData.subscriptionStartDate || !formData.subscriptionEndDate || !formData.paymentMethod || !formData.paymentFrequency) {
+      setError('Por favor completa todos los campos: Fecha de Inicio, Fecha de Fin, Método de Pago y Frecuencia')
+      return
+    }
+
+    // Validar método de pago personalizado si es "otro"
+    if (formData.paymentMethod === 'otro' && !formData.otherPaymentMethod.trim()) {
+      setError('Por favor especifica el método de pago personalizado')
+      return
+    }
+
+    setSavingSubscription(true)
+    setError(null)
+
+    try {
+      // Parsear fechas directamente en hora local a mediodía
+      const paymentDate = parseLocalDate(formData.subscriptionStartDate)
+      const subscriptionStartDate = parseLocalDate(formData.subscriptionStartDate)
+      const subscriptionEndDate = parseLocalDate(formData.subscriptionEndDate)
+
+      const paymentsRef = collection(db, 'clients', clientId, 'payments')
+      
+      // Crear documento de pago
+      const paymentData: any = {
+        date: Timestamp.fromDate(paymentDate),
+        method: formData.paymentMethod,
+        frequency: formData.paymentFrequency,
+        amount: null,
+        notes: '',
+        createdAt: serverTimestamp()
+      }
+      
+      // Agregar método de pago personalizado si se seleccionó "otro"
+      if (formData.paymentMethod === 'otro' && formData.otherPaymentMethod) {
+        paymentData.otherPaymentMethod = formData.otherPaymentMethod.trim()
+      }
+      
+      await addDoc(paymentsRef, paymentData)
+
+      // Recalcular y actualizar estado del cliente
+      const updatedPaymentsSnapshot = await getDocs(paymentsRef)
+      const updatedPayments = updatedPaymentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      const newStatus = calculateClientStatus(formData.subscriptionEndDate, updatedPayments, formData.isPaymentExempt)
+      
+      // Actualizar documento del cliente con fechas de suscripción y datos de pago
+      const clientRef = doc(db, 'clients', clientId)
+      await updateDoc(clientRef, {
+        subscriptionStartDate: subscriptionStartDate,
+        subscriptionEndDate: subscriptionEndDate,
+        paymentMethod: formData.paymentMethod,
+        paymentFrequency: formData.paymentFrequency,
+        otherPaymentMethod: formData.paymentMethod === 'otro' ? formData.otherPaymentMethod.trim() : null,
+        isPaymentExempt: formData.isPaymentExempt,
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+        updatedBy: user?.email || ''
+      })
+
+      // Actualizar estado local del formulario
+      setFormData(prev => ({
+        ...prev,
+        subscriptionStartDate: formData.subscriptionStartDate,
+        subscriptionEndDate: formData.subscriptionEndDate,
+        paymentMethod: formData.paymentMethod,
+        paymentFrequency: formData.paymentFrequency,
+        otherPaymentMethod: formData.otherPaymentMethod
+      }))
+
+      alert('Pago registrado y suscripción actualizada exitosamente')
+      // Los pagos se actualizarán automáticamente gracias al onSnapshot existente
+    } catch (error: any) {
+      console.error('Error registering payment:', error)
+      let errorMessage = 'Error al registrar el pago'
+      
+      if (error.code === 'permission-denied') {
+        errorMessage = 'No tienes permisos para registrar pagos. Verifica las reglas de Firestore.'
+      } else if (error.code === 'unavailable') {
+        errorMessage = 'Servicio no disponible. Por favor, intenta de nuevo más tarde.'
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`
+      }
+      
+      setError(errorMessage)
+    } finally {
+      setSavingSubscription(false)
+    }
+  }
+
   // Función crítica para borrar pago y actualizar status del cliente si es necesario
   const handleDeletePayment = async (paymentId: string) => {
     if (!clientId || !isCoach) return
@@ -426,38 +615,29 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       const paymentRef = doc(db, 'clients', clientId, 'payments', paymentId)
       await deleteDoc(paymentRef)
 
-      // Lógica crítica: Verificar si hay pagos activos restantes
+      // Recalcular estado del cliente después de borrar el pago
       const paymentsRef = collection(db, 'clients', clientId, 'payments')
       const paymentsSnapshot = await getDocs(query(paymentsRef, orderBy('date', 'desc')))
       
-      const now = new Date()
-      let hasActivePayment = false
-
-      paymentsSnapshot.forEach((doc) => {
-        const paymentData = doc.data()
-        const paymentDate = paymentData.date?.toDate 
-          ? paymentData.date.toDate() 
-          : paymentData.date 
-          ? new Date(paymentData.date) 
-          : null
-
-        if (paymentDate) {
-          // Considerar pago activo si la fecha es hoy o en el futuro
-          // O si es reciente (últimos 30 días) y no hay fecha de fin de suscripción
-          const daysDiff = Math.floor((now.getTime() - paymentDate.getTime()) / (1000 * 60 * 60 * 24))
-          if (daysDiff <= 30 || paymentDate >= now) {
-            hasActivePayment = true
-          }
-        }
+      const remainingPayments = paymentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      
+      // Calcular nuevo estado basado en pagos restantes
+      const newStatus = calculateClientStatus(formData.subscriptionEndDate, remainingPayments, formData.isPaymentExempt)
+      
+      // Actualizar estado en el documento del cliente
+      const clientRef = doc(db, 'clients', clientId)
+      await updateDoc(clientRef, {
+        status: newStatus,
+        updatedAt: serverTimestamp()
       })
-
-      // Si no hay pagos activos, actualizar el status del cliente a 'inactive'
-      if (!hasActivePayment) {
-        const clientRef = doc(db, 'clients', clientId)
-        await updateDoc(clientRef, {
-          status: 'inactive'
-        })
-        alert('Pago borrado. El cliente ha sido marcado como inactivo porque no tiene pagos activos.')
+      
+      if (newStatus === 'pending') {
+        alert('Pago borrado. El cliente ahora está pendiente por empezar (sin pagos registrados).')
+      } else if (newStatus === 'inactive') {
+        alert('Pago borrado. El cliente ha sido marcado como inactivo.')
       } else {
         alert('Pago borrado exitosamente.')
       }
@@ -484,7 +664,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     setError(null)
 
     try {
-      const measureDate = new Date(anthropometricFormData.date)
+      // Parsear fecha directamente en hora local a mediodía para evitar desfase de timezone
+      const measureDate = parseLocalDate(anthropometricFormData.date)
       const anthropometricRef = collection(db, 'clients', clientId, 'anthropometric')
       
       const measureData: any = {
@@ -617,7 +798,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
       csvRows.push('HISTORIAL DE PAGOS')
       csvRows.push('Fecha,Monto,Método,Frecuencia,Notas')
       payments.forEach((payment: any) => {
-        const date = payment.date?.toDate ? payment.date.toDate() : (payment.date ? new Date(payment.date) : new Date())
+        const date = normalizeDate(payment.date)
         const dateStr = date.toLocaleDateString('es-ES')
         const amount = payment.amount || ''
         const method = payment.method || ''
@@ -679,8 +860,23 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     )
   }
 
+  // Calcular estado del cliente
+  const clientStatus = calculateClientStatus(formData.subscriptionEndDate, payments, formData.isPaymentExempt)
+
   return (
     <>
+      {/* Badge de Estado del Cliente */}
+      <div className="mb-6 flex items-center justify-center">
+        <span className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+          clientStatus === 'pending'
+            ? 'bg-yellow-500/20 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-400 border border-yellow-500/50'
+            : clientStatus === 'active'
+            ? 'bg-green-500/20 text-green-700 dark:bg-green-500/30 dark:text-green-400 border border-green-500/50'
+            : 'bg-red-500/20 text-red-700 dark:bg-red-500/30 dark:text-red-400 border border-red-500/50'
+        }`}>
+          {clientStatus === 'pending' ? 'Pendiente por empezar' : clientStatus === 'active' ? 'Activo' : 'Inactivo'}
+        </span>
+      </div>
       {/* Form - Layout Horizontal */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start mt-8">
         {/* Botón Información Personal */}
@@ -1127,11 +1323,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
               ) : showAnthropometricHistory ? (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {anthropometricMeasures.map((measure) => {
-                    const measureDate = measure.date?.toDate 
-                      ? measure.date.toDate() 
-                      : measure.date 
-                      ? new Date(measure.date) 
-                      : new Date()
+                    const measureDate = normalizeDate(measure.date)
                     
                     return (
                       <div
@@ -1285,6 +1477,37 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                 </h3>
               
                 <div className="space-y-4">
+                  {/* Switch Cliente Exento de Pago */}
+                  <div className={`flex items-center gap-3 p-4 rounded-lg border ${
+                    theme === 'dark' ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <label className="relative inline-flex items-center cursor-pointer flex-1">
+                      <input
+                        type="checkbox"
+                        checked={formData.isPaymentExempt}
+                        onChange={(e) => setFormData(prev => ({ ...prev, isPaymentExempt: e.target.checked }))}
+                        className="sr-only peer"
+                      />
+                      <div className={`relative w-11 h-6 rounded-full transition-colors ${
+                        formData.isPaymentExempt
+                          ? 'bg-primary-600'
+                          : theme === 'dark' ? 'bg-slate-600' : 'bg-gray-300'
+                      }`}>
+                        <div className={`absolute top-[2px] left-[2px] bg-white rounded-full h-5 w-5 transition-transform ${
+                          formData.isPaymentExempt ? 'translate-x-5' : ''
+                        }`}></div>
+                      </div>
+                      <span className={`ml-3 text-sm font-medium ${
+                        theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Cliente Exento de Pago (No Paga)
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Campos condicionales - Solo mostrar si NO está exento */}
+                  {!formData.isPaymentExempt && (
+                    <>
                   {/* Fecha de Inicio */}
                   <div>
                     <label className={`block text-sm font-semibold mb-2 ${
@@ -1399,6 +1622,8 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                       <option value="por_clases">Por Clases</option>
                     </select>
                   </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1411,13 +1636,30 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                     Historial de Pagos
                   </h3>
                   <button
-                    onClick={() => setShowPaymentModal(true)}
-                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                    onClick={handleRegisterPayment}
+                    disabled={savingSubscription}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
+                      savingSubscription
+                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                        : 'bg-primary-600 hover:bg-primary-700 text-white'
+                    }`}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Registrar Pago
+                    {savingSubscription ? (
+                      <>
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Registrar Pago
+                      </>
+                    )}
                   </button>
                 </div>
 
@@ -1433,11 +1675,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                   // Agrupar pagos por mes/año
                   const groupedPayments: { [key: string]: typeof payments } = {}
                   payments.forEach((payment) => {
-                    const paymentDate = payment.date?.toDate 
-                      ? payment.date.toDate() 
-                      : payment.date 
-                      ? new Date(payment.date) 
-                      : new Date()
+                    const paymentDate = normalizeDate(payment.date)
                     const monthKey = paymentDate.toLocaleDateString('es-ES', { 
                       month: 'long', 
                       year: 'numeric' 
@@ -1466,11 +1704,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                           </h4>
                           <div className="space-y-3">
                             {groupedPayments[monthKey].map((payment) => {
-                              const paymentDate = payment.date?.toDate 
-                                ? payment.date.toDate() 
-                                : payment.date 
-                                ? new Date(payment.date) 
-                                : new Date()
+                              const paymentDate = normalizeDate(payment.date)
                               
                               return (
                                 <div

@@ -114,6 +114,27 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
     })
   }
 
+  // Función helper para filtrar registros de hoy
+  const filterRecordsForToday = <T extends RMRecord | PRRecord>(records: T[]): T[] => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return records.filter(record => {
+      let recordDate: Date
+      if (record.date instanceof Date) {
+        recordDate = new Date(record.date)
+      } else if (typeof record.date === 'number') {
+        recordDate = new Date(record.date)
+      } else if (record.date && typeof record.date === 'object' && 'toDate' in record.date) {
+        recordDate = (record.date as any).toDate()
+      } else {
+        return false
+      }
+      recordDate.setHours(0, 0, 0, 0)
+      return recordDate.getTime() === today.getTime()
+    })
+  }
+
   const saveRM = async () => {
     setSaving(true)
     try {
@@ -493,37 +514,43 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
 
   const filteredRMs = filterByDate(rms) as RMRecord[]
   const filteredPRs = filterByDate(prs) as PRRecord[]
+  
+  // Filtrar registros para mostrar solo los de hoy si es cliente
+  const displayRMs = isCoach ? filteredRMs : filterRecordsForToday(filteredRMs)
+  const displayPRs = isCoach ? filteredPRs : filterRecordsForToday(filteredPRs)
 
   return (
     <div className="space-y-6">
-      {/* Filtro por fecha */}
-      <div className={`rounded-xl p-4 shadow-lg ${
-        theme === 'dark' 
-          ? 'bg-slate-800/50 backdrop-blur-sm' 
-          : 'bg-white/80 backdrop-blur-sm'
-      }`}>
-        <div className="flex items-center gap-4 flex-wrap">
-          <label className={`text-sm font-semibold ${
-            theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-          }`}>
-            Filtrar por fecha:
-          </label>
-          <select
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as 'all' | 'month' | '3months' | 'year')}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-              theme === 'dark'
-                ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
-                : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
-            }`}
-          >
-            <option value="all">Todo</option>
-            <option value="month">Último mes</option>
-            <option value="3months">Últimos 3 meses</option>
-            <option value="year">Último año</option>
-          </select>
+      {/* Filtro por fecha - Solo visible para el coach */}
+      {isCoach && (
+        <div className={`rounded-xl p-4 shadow-lg ${
+          theme === 'dark' 
+            ? 'bg-slate-800/50 backdrop-blur-sm' 
+            : 'bg-white/80 backdrop-blur-sm'
+        }`}>
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className={`text-sm font-semibold ${
+              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+            }`}>
+              Filtrar por fecha:
+            </label>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value as 'all' | 'month' | '3months' | 'year')}
+              className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                theme === 'dark'
+                  ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <option value="all">Todo</option>
+              <option value="month">Último mes</option>
+              <option value="3months">Últimos 3 meses</option>
+              <option value="year">Último año</option>
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* RM Section */}
       <div className={`rounded-xl p-6 shadow-lg ${
@@ -609,13 +636,16 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         )}
 
         {/* Lista de RMs */}
-        {filteredRMs.length === 0 ? (
+        {displayRMs.length === 0 ? (
           <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-            {rms.length === 0 ? 'No hay registros de RM aún' : 'No hay registros de RM en el período seleccionado'}
+            {isCoach 
+              ? (rms.length === 0 ? 'No hay registros de RM aún' : 'No hay registros de RM en el período seleccionado')
+              : (rms.length === 0 ? 'No hay registros de RM aún' : 'Sin registros hoy')
+            }
           </p>
         ) : (
           <div className="space-y-2">
-            {filteredRMs.map((rm) => (
+            {displayRMs.map((rm) => (
               <div
                 key={rm.id}
                 className={`p-3 rounded-lg ${
@@ -775,13 +805,16 @@ const RMAndPRSection = ({ clientId, isCoach = false }: RMAndPRSectionProps) => {
         )}
 
         {/* Lista de PRs */}
-        {filteredPRs.length === 0 ? (
+        {displayPRs.length === 0 ? (
           <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-            {prs.length === 0 ? 'No hay registros de PR aún' : 'No hay registros de PR en el período seleccionado'}
+            {isCoach 
+              ? (prs.length === 0 ? 'No hay registros de PR aún' : 'No hay registros de PR en el período seleccionado')
+              : (prs.length === 0 ? 'No hay registros de PR aún' : 'Sin registros hoy')
+            }
           </p>
         ) : (
           <div className="space-y-2">
-            {filteredPRs.map((pr) => (
+            {displayPRs.map((pr) => (
               <div
                 key={pr.id}
                 className={`p-3 rounded-lg ${

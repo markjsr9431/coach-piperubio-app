@@ -20,7 +20,7 @@ interface Client {
   name: string
   email: string
   plan: string
-  status: 'active' | 'inactive'
+  status: 'active' | 'inactive' | 'pending'
   lastWorkout?: string
   createdAt?: any
   lastLogin?: any
@@ -28,6 +28,7 @@ interface Client {
   subscriptionEndDate?: any
   profilePhoto?: string | null
   avatar?: string | null
+  isPaymentExempt?: boolean
   progress?: {
     monthlyProgress: number
     completedDays: number
@@ -71,7 +72,7 @@ const HomePage = () => {
   const [sortBy, setSortBy] = useState<'name' | 'subscription' | 'payment' | 'createdAt' | 'none'>('none')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'pending' | 'all'>('all')
   const [rmFilter, setRmFilter] = useState<boolean | null>(null)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [hasFeedbackToday, setHasFeedbackToday] = useState(false)
@@ -113,6 +114,7 @@ const HomePage = () => {
         subscriptionEndDate?: any
         profilePhoto?: string | null
         avatar?: string | null
+        isPaymentExempt?: boolean
       }
 
       const isClient = (data: any): data is ClientData => {
@@ -131,8 +133,8 @@ const HomePage = () => {
       const buildQuery = (clientsRef: any) => {
         let q: any = clientsRef
         
-        // Aplicar filtro de estado
-        if (statusFilter !== 'all') {
+        // Aplicar filtro de estado (solo para 'active' e 'inactive', 'pending' se calcula dinámicamente)
+        if (statusFilter !== 'all' && statusFilter !== 'pending') {
           q = query(q, where('status', '==', statusFilter))
         }
         
@@ -229,13 +231,26 @@ const HomePage = () => {
                   console.error(`Error loading RM for ${docSnapshot.id}:`, error)
                 }
 
+                // Cargar pagos del cliente
+                let payments: any[] = []
+                try {
+                  const paymentsRef = collection(db, 'clients', docSnapshot.id, 'payments')
+                  const paymentsSnapshot = await getDocs(paymentsRef)
+                  payments = paymentsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                  }))
+                } catch (error) {
+                  console.error(`Error loading payments for ${docSnapshot.id}:`, error)
+                }
+
               const clientData = data as ClientData
-              const client: Client = {
+              const tempClient: Client = {
                 id: docSnapshot.id,
                 name: clientData.name || '',
                 email: clientData.email || '',
                 plan: clientData.plan || 'Plan Mensual - Nivel 2',
-                status: (clientData.status as 'active' | 'inactive') || 'active',
+                status: (clientData.status as 'active' | 'inactive' | 'pending') || 'active',
                 lastWorkout: clientData.lastWorkout || undefined,
                 createdAt: clientData.createdAt || undefined,
                 lastLogin: clientData.lastLogin || undefined,
@@ -243,8 +258,16 @@ const HomePage = () => {
                 subscriptionEndDate: clientData.subscriptionEndDate || undefined,
                 profilePhoto: clientData.profilePhoto || null,
                 avatar: clientData.avatar || null,
+                isPaymentExempt: clientData.isPaymentExempt || false,
                 progress,
                 latestRM
+              }
+              
+              // Calcular estado dinámicamente basado en pagos y fecha de suscripción
+              const calculatedStatus = calculateClientStatus(tempClient, payments)
+              const client: Client = {
+                ...tempClient,
+                status: calculatedStatus
               }
                 return client
               }
@@ -254,20 +277,18 @@ const HomePage = () => {
 
           let validClients = clientsWithProgress.filter((c): c is Client => c !== null)
           
-          // Filtrar solo clientes con suscripción vigente (activos)
-          validClients = validClients.filter((client) => {
-            if (client.status !== 'active') return false
-            // Si no tiene subscriptionEndDate, está activo
-            if (!client.subscriptionEndDate) return true
-            // Si tiene subscriptionEndDate, verificar que sea en el futuro
-            const endDate = client.subscriptionEndDate?.toDate 
-              ? client.subscriptionEndDate.toDate() 
-              : client.subscriptionEndDate 
-              ? new Date(client.subscriptionEndDate) 
-              : null
-            if (!endDate) return true
-            return endDate >= new Date()
-          })
+          // Filtrar clientes según el filtro de estado (el estado ya está calculado dinámicamente)
+          if (statusFilter !== 'all') {
+            validClients = validClients.filter((client) => {
+              return client.status === statusFilter
+            })
+          } else {
+            // Si el filtro es 'all', mostrar solo clientes activos y pendientes (no inactivos por defecto)
+            // Esto mantiene el comportamiento anterior donde solo se mostraban activos
+            validClients = validClients.filter((client) => {
+              return client.status === 'active' || client.status === 'pending'
+            })
+          }
           
           // Aplicar filtro por RM si está activo
           if (rmFilter !== null) {
@@ -347,13 +368,26 @@ const HomePage = () => {
                 console.error(`Error loading RM for ${docSnapshot.id}:`, error)
               }
 
+              // Cargar pagos del cliente
+              let payments: any[] = []
+              try {
+                const paymentsRef = collection(db, 'clients', docSnapshot.id, 'payments')
+                const paymentsSnapshot = await getDocs(paymentsRef)
+                payments = paymentsSnapshot.docs.map(doc => ({
+                  id: doc.id,
+                  ...doc.data()
+                }))
+              } catch (error) {
+                console.error(`Error loading payments for ${docSnapshot.id}:`, error)
+              }
+
               const clientData = data as ClientData
-              const client: Client = {
+              const tempClient: Client = {
                 id: docSnapshot.id,
                 name: clientData.name || '',
                 email: clientData.email || '',
                 plan: clientData.plan || 'Plan Mensual - Nivel 2',
-                status: (clientData.status as 'active' | 'inactive') || 'active',
+                status: (clientData.status as 'active' | 'inactive' | 'pending') || 'active',
                 lastWorkout: clientData.lastWorkout || undefined,
                 createdAt: clientData.createdAt || undefined,
                 lastLogin: clientData.lastLogin || undefined,
@@ -361,8 +395,16 @@ const HomePage = () => {
                 subscriptionEndDate: clientData.subscriptionEndDate || undefined,
                 profilePhoto: clientData.profilePhoto || null,
                 avatar: clientData.avatar || null,
+                isPaymentExempt: clientData.isPaymentExempt || false,
                 progress,
                 latestRM
+              }
+              
+              // Calcular estado dinámicamente basado en pagos y fecha de suscripción
+              const calculatedStatus = calculateClientStatus(tempClient, payments)
+              const client: Client = {
+                ...tempClient,
+                status: calculatedStatus
               }
               return client
             }
@@ -372,20 +414,18 @@ const HomePage = () => {
 
         let validClients = clientsWithProgress.filter((c): c is Client => c !== null)
         
-        // Filtrar solo clientes con suscripción vigente (activos)
-        validClients = validClients.filter((client) => {
-          if (client.status !== 'active') return false
-          // Si no tiene subscriptionEndDate, está activo
-          if (!client.subscriptionEndDate) return true
-          // Si tiene subscriptionEndDate, verificar que sea en el futuro
-          const endDate = client.subscriptionEndDate?.toDate 
-            ? client.subscriptionEndDate.toDate() 
-            : client.subscriptionEndDate 
-            ? new Date(client.subscriptionEndDate) 
-            : null
-          if (!endDate) return true
-          return endDate >= new Date()
-        })
+        // Filtrar clientes según el filtro de estado (el estado ya está calculado dinámicamente)
+        if (statusFilter !== 'all') {
+          validClients = validClients.filter((client) => {
+            return client.status === statusFilter
+          })
+        } else {
+          // Si el filtro es 'all', mostrar solo clientes activos y pendientes (no inactivos por defecto)
+          // Esto mantiene el comportamiento anterior donde solo se mostraban activos
+          validClients = validClients.filter((client) => {
+            return client.status === 'active' || client.status === 'pending'
+          })
+        }
         
         // Aplicar filtro por RM si está activo
         if (rmFilter !== null) {
@@ -599,7 +639,51 @@ const HomePage = () => {
     }
   }
 
+  // Función helper para calcular el estado del cliente basado en pagos y fecha de suscripción
+  const calculateClientStatus = (client: Client, payments: any[]): 'pending' | 'active' | 'inactive' => {
+    // Si el cliente está exento de pago, siempre está activo
+    if (client.isPaymentExempt === true) {
+      return 'active'
+    }
+    
+    // Si no tiene pagos registrados, está pendiente
+    if (!payments || payments.length === 0) {
+      return 'pending'
+    }
 
+    // Si tiene pagos pero no tiene fecha de fin de suscripción, considerar activo
+    if (!client.subscriptionEndDate) {
+      return 'active'
+    }
+
+    // Convertir subscriptionEndDate a Date
+    let endDate: Date | null = null
+    if (client.subscriptionEndDate?.toDate) {
+      endDate = client.subscriptionEndDate.toDate()
+    } else if (client.subscriptionEndDate instanceof Date) {
+      endDate = client.subscriptionEndDate
+    } else if (typeof client.subscriptionEndDate === 'string') {
+      endDate = new Date(client.subscriptionEndDate)
+    } else if (client.subscriptionEndDate?.seconds) {
+      endDate = new Date(client.subscriptionEndDate.seconds * 1000)
+    }
+
+    if (!endDate || isNaN(endDate.getTime())) {
+      // Si no se puede convertir la fecha, considerar activo si tiene pagos
+      return 'active'
+    }
+
+    // Comparar con fecha actual
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    endDate.setHours(0, 0, 0, 0)
+
+    if (now <= endDate) {
+      return 'active'
+    } else {
+      return 'inactive'
+    }
+  }
 
   const cardVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -706,7 +790,7 @@ const HomePage = () => {
                   <div>
                     <select
                       value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')}
+                      onChange={(e) => setStatusFilter(e.target.value as 'active' | 'inactive' | 'pending' | 'all')}
                       className={`w-full px-4 py-2 rounded-lg border transition-colors text-sm ${
                         theme === 'dark'
                           ? 'bg-slate-700 border-slate-600 text-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
@@ -715,6 +799,7 @@ const HomePage = () => {
                     >
                       <option value="all">Todos</option>
                       <option value="active">Activos</option>
+                      <option value="pending">Pendientes</option>
                       <option value="inactive">Inactivos</option>
                     </select>
                   </div>
@@ -1042,6 +1127,33 @@ const HomePage = () => {
                         : new Date(0)
                       comparison = aPayDate.getTime() - bPayDate.getTime()
                       break
+                    case 'createdAt':
+                      // Ordenar por subscriptionStartDate (fecha de inicio de suscripción) para "Más Antiguo"
+                      // Usar fecha muy futura para clientes sin fecha (van al final)
+                      const futureDate = new Date('9999-12-31')
+                      
+                      const aStartDate = a.subscriptionStartDate?.toDate 
+                        ? a.subscriptionStartDate.toDate() 
+                        : a.subscriptionStartDate 
+                        ? new Date(a.subscriptionStartDate) 
+                        : (a.createdAt?.toDate 
+                          ? a.createdAt.toDate() 
+                          : a.createdAt 
+                          ? new Date(a.createdAt) 
+                          : futureDate)
+                      
+                      const bStartDate = b.subscriptionStartDate?.toDate 
+                        ? b.subscriptionStartDate.toDate() 
+                        : b.subscriptionStartDate 
+                        ? new Date(b.subscriptionStartDate) 
+                        : (b.createdAt?.toDate 
+                          ? b.createdAt.toDate() 
+                          : b.createdAt 
+                          ? new Date(b.createdAt) 
+                          : futureDate)
+                      
+                      comparison = aStartDate.getTime() - bStartDate.getTime()
+                      break
                   }
                   
                   return sortOrder === 'asc' ? comparison : -comparison
@@ -1070,7 +1182,7 @@ const HomePage = () => {
                       </motion.h3>
                         
                       </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                         {filteredAllClients.map((client, index) => (
                         <motion.div
                           key={client.id}
@@ -1081,66 +1193,72 @@ const HomePage = () => {
                           whileHover={{ scale: 1.02, y: -5 }}
                           whileTap={{ scale: 0.98 }}
                           onClick={() => handleClientClick(client.id)}
-                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between cursor-pointer p-1.5 sm:p-2 min-h-[120px] sm:min-h-[140px] ${
+                          className={`rounded-xl shadow-lg hover:shadow-2xl transition-all duration-200 relative flex flex-col justify-between cursor-pointer p-2 sm:p-3 h-full ${
                             theme === 'dark' 
                               ? 'bg-slate-800/80 border border-slate-700' 
                               : 'bg-white border border-gray-200'
                           }`}
                         >
-                          <div>
-                            <div className="flex items-start justify-between mb-0.5">
-                              <div className="flex-1 min-w-0">
-                                <h3 
-                                  className={`text-base sm:text-lg font-bold mb-0.5 line-clamp-2 ${
-                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                  }`}
-                                  title={client.name}
-                                >
-                                  {formatClientName(client.name)}
-                                </h3>
-                                <div className={`text-xs sm:text-sm space-y-0 ${
-                                  theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                                }`}>
-                                  {(() => {
-                                    const daysSubscribed = calculateDaysSubscribed(client.subscriptionStartDate || client.createdAt)
-                                    const daysUntilPayment = calculateDaysUntilPayment(client.subscriptionEndDate)
-                                    return (
-                                      <>
-                                        {daysSubscribed !== null && (
-                                          <p>Días suscrito: {daysSubscribed} días</p>
-                                        )}
-                                        {daysUntilPayment !== null ? (
-                                          <p>Próximo pago en: {daysUntilPayment > 0 ? `${daysUntilPayment} días` : 'Hoy'}</p>
-                                        ) : (
-                                          <p>Sin fecha de pago</p>
-                                        )}
-                                        {client.latestRM && (
-                                          <p className="mt-0.5">
-                                            <span className="font-semibold">RM:</span> {client.latestRM.weight} {client.latestRM.exercise}
-                                          </p>
-                                        )}
-                                      </>
-                                    )
-                                  })()}
-                                </div>
-                              </div>
-                              {/* Botón eliminar - Solo para coach */}
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  onClick={(e) => handleDeleteClient(e, client.id)}
-                                  className={`p-1.5 rounded-lg transition-colors ${
-                                    theme === 'dark'
-                                      ? 'hover:bg-red-500/20 text-red-400'
-                                      : 'hover:bg-red-50 text-red-600'
-                                  }`}
-                                  title={t('dashboard.deleteClient')}
-                                  aria-label={t('dashboard.deleteClient')}
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              </div>
+                          {/* Botón eliminar - Solo para coach */}
+                          <button
+                            onClick={(e) => handleDeleteClient(e, client.id)}
+                            className={`absolute top-2 right-2 p-1.5 rounded-lg transition-colors ${
+                              theme === 'dark'
+                                ? 'hover:bg-red-500/20 text-red-400'
+                                : 'hover:bg-red-50 text-red-600'
+                            }`}
+                            title={t('dashboard.deleteClient')}
+                            aria-label={t('dashboard.deleteClient')}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                          <div className="pr-6">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 
+                                className={`text-sm font-bold line-clamp-2 flex-1 ${
+                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                }`}
+                                title={client.name}
+                              >
+                                {formatClientName(client.name)}
+                              </h3>
+                              {/* Badge de Estado */}
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold whitespace-nowrap ${
+                                client.status === 'pending'
+                                  ? 'bg-yellow-500/20 text-yellow-600 dark:bg-yellow-500/30 dark:text-yellow-400'
+                                  : client.status === 'active'
+                                  ? 'bg-green-500/20 text-green-600 dark:bg-green-500/30 dark:text-green-400'
+                                  : 'bg-red-500/20 text-red-600 dark:bg-red-500/30 dark:text-red-400'
+                              }`}>
+                                {client.status === 'pending' ? 'Pendiente' : client.status === 'active' ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </div>
+                            <div className={`text-[10px] sm:text-xs space-y-0 ${
+                              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                            }`}>
+                                {(() => {
+                                  const daysSubscribed = calculateDaysSubscribed(client.subscriptionStartDate || client.createdAt)
+                                  const daysUntilPayment = calculateDaysUntilPayment(client.subscriptionEndDate)
+                                  return (
+                                    <>
+                                      {daysSubscribed !== null && (
+                                        <p>Días suscrito: {daysSubscribed} días</p>
+                                      )}
+                                      {daysUntilPayment !== null ? (
+                                        <p>Próximo pago en: {daysUntilPayment > 0 ? `${daysUntilPayment} días` : 'Hoy'}</p>
+                                      ) : (
+                                        <p>Sin fecha de pago</p>
+                                      )}
+                                      {client.latestRM && (
+                                        <p className="mt-0.5">
+                                          <span className="font-semibold">RM:</span> {client.latestRM.weight} {client.latestRM.exercise}
+                                        </p>
+                                      )}
+                                    </>
+                                  )
+                                })()}
                             </div>
                           </div>
                         </motion.div>
@@ -1181,12 +1299,15 @@ const HomePage = () => {
             clientId={clientData.id}
           />
           <DailyFeedbackModal
-            isOpen={showFeedbackModal && !hasFeedbackToday}
+            isOpen={showFeedbackModal}
             onClose={() => {
               setShowFeedbackModal(false)
+            }}
+            onSave={() => {
               setHasFeedbackToday(true)
             }}
             clientId={clientData.id}
+            hasFeedbackToday={hasFeedbackToday}
           />
           <CoachContactModal
             isOpen={showCoachContactModal}

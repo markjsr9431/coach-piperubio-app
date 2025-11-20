@@ -8,9 +8,11 @@ interface DailyFeedbackModalProps {
   isOpen: boolean
   onClose: () => void
   clientId: string
+  hasFeedbackToday?: boolean
+  onSave?: () => void
 }
 
-const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalProps) => {
+const DailyFeedbackModal = ({ isOpen, onClose, clientId, hasFeedbackToday = false, onSave }: DailyFeedbackModalProps) => {
   const { theme } = useTheme()
   const [rpe, setRpe] = useState(5)
   const [mood, setMood] = useState<number | null>(null)
@@ -37,6 +39,11 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
       return
     }
 
+    // Si hasFeedbackToday es true, establecer isSaved inmediatamente
+    if (hasFeedbackToday) {
+      setIsSaved(true)
+    }
+
     const loadTodayFeedback = async () => {
       try {
         const today = new Date()
@@ -60,21 +67,32 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
           setIsSaved(true) // Ya está guardado, no editable
         } else {
           setExistingFeedbackId(null)
-          setIsSaved(false)
+          // Solo establecer isSaved a false si hasFeedbackToday no es true
+          if (!hasFeedbackToday) {
+            setIsSaved(false)
+          }
         }
       } catch (error) {
         console.error('Error loading today feedback:', error)
         setExistingFeedbackId(null)
-        setIsSaved(false)
+        if (!hasFeedbackToday) {
+          setIsSaved(false)
+        }
       }
     }
 
     loadTodayFeedback()
-  }, [isOpen, clientId])
+  }, [isOpen, clientId, hasFeedbackToday])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    // No permitir guardar si ya hay feedback hoy
+    if (hasFeedbackToday || isSaved) {
+      setError('Ya has registrado tu feedback de hoy. Solo puedes registrar uno por día.')
+      return
+    }
 
     if (mood === null) {
       setError('Por favor selecciona tu estado de ánimo')
@@ -114,6 +132,11 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
 
       // Marcar como guardado
       setIsSaved(true)
+      
+      // Notificar al componente padre que se guardó exitosamente
+      if (onSave) {
+        onSave()
+      }
       
       // Cerrar modal
       onClose()
@@ -195,6 +218,15 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
           </div>
 
           {/* Content */}
+          {(hasFeedbackToday || isSaved) && (
+            <div className={`p-4 sm:p-6 mb-4 ${theme === 'dark' ? 'bg-green-600/10 border border-green-500/30' : 'bg-green-50 border border-green-200'}`}>
+              <p className={`text-sm font-semibold text-center ${
+                theme === 'dark' ? 'text-green-400' : 'text-green-700'
+              }`}>
+                ✓ Ya registraste tu feedback de hoy
+              </p>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
             {/* RPE - Sensación de Esfuerzo */}
             <div>
@@ -212,9 +244,9 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
                   max="10"
                   value={rpe}
                   onChange={(e) => setRpe(Number(e.target.value))}
-                  disabled={isSaved}
+                  disabled={hasFeedbackToday || isSaved}
                   className={`w-full h-2 bg-gray-200 rounded-lg appearance-none accent-primary-600 ${
-                    isSaved ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                    (hasFeedbackToday || isSaved) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                   }`}
                   style={{
                     background: `linear-gradient(to right, ${
@@ -265,8 +297,8 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => !isSaved && setMood(option.value)}
-                    disabled={isSaved}
+                    onClick={() => !(hasFeedbackToday || isSaved) && setMood(option.value)}
+                    disabled={hasFeedbackToday || isSaved}
                     className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-lg transition-all min-h-[60px] sm:min-h-[80px] ${
                       mood === option.value
                         ? theme === 'dark'
@@ -275,7 +307,7 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
                         : theme === 'dark'
                         ? 'bg-slate-700 hover:bg-slate-600 text-slate-300'
                         : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    } ${isSaved ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    } ${(hasFeedbackToday || isSaved) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     <span className="text-2xl sm:text-3xl mb-1">{option.emoji}</span>
                     <span className="text-[10px] sm:text-xs font-medium text-center">
@@ -313,17 +345,17 @@ const DailyFeedbackModal = ({ isOpen, onClose, clientId }: DailyFeedbackModalPro
               </button>
               <button
                 type="submit"
-                disabled={saving || mood === null || isSaved}
+                disabled={saving || mood === null || hasFeedbackToday || isSaved}
                 className={`flex-1 px-4 py-3 rounded-lg font-semibold transition-colors ${
-                  saving || mood === null || isSaved
+                  saving || mood === null || hasFeedbackToday || isSaved
                     ? 'bg-gray-400 cursor-not-allowed text-white'
                     : 'bg-primary-600 hover:bg-primary-700 text-white'
                 }`}
               >
-                {saving ? 'Guardando...' : isSaved ? 'Ya guardado' : 'Guardar Feedback'}
+                {saving ? 'Guardando...' : (hasFeedbackToday || isSaved) ? 'Ya guardado' : 'Guardar Feedback'}
               </button>
             </div>
-            {isSaved && (
+            {(hasFeedbackToday || isSaved) && (
               <p className={`text-sm text-center mt-2 ${
                 theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
               }`}>

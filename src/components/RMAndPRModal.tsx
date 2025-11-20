@@ -119,6 +119,27 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
     })
   }
 
+  // Función helper para filtrar registros de hoy
+  const filterRecordsForToday = <T extends RMRecord | PRRecord>(records: T[]): T[] => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    return records.filter(record => {
+      let recordDate: Date
+      if (record.date instanceof Date) {
+        recordDate = new Date(record.date)
+      } else if (typeof record.date === 'number') {
+        recordDate = new Date(record.date)
+      } else if (record.date && typeof record.date === 'object' && 'toDate' in record.date) {
+        recordDate = (record.date as any).toDate()
+      } else {
+        return false
+      }
+      recordDate.setHours(0, 0, 0, 0)
+      return recordDate.getTime() === today.getTime()
+    })
+  }
+
   const saveRM = async () => {
     setSaving(true)
     try {
@@ -355,6 +376,10 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
     return 'Fecha no disponible'
   }
 
+  // Filtrar registros para mostrar solo los de hoy si es cliente
+  const displayRMs = isCoach ? rms : filterRecordsForToday(rms)
+  const displayPRs = isCoach ? prs : filterRecordsForToday(prs)
+
   if (!isOpen) return null
 
   return (
@@ -512,13 +537,13 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                   )}
 
                   {/* Lista de RMs */}
-                  {rms.length === 0 ? (
+                  {displayRMs.length === 0 ? (
                     <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-                      No hay registros de RM aún
+                      {isCoach ? 'No hay registros de RM aún' : (rms.length === 0 ? 'No hay registros de RM aún' : 'Sin registros hoy')}
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {rms.map((rm) => (
+                      {displayRMs.map((rm) => (
                         <div
                           key={rm.id}
                           className={`p-3 rounded-lg ${
@@ -641,13 +666,13 @@ const RMAndPRModal = ({ isOpen, onClose, clientId, isCoach = false }: RMAndPRMod
                   )}
 
                   {/* Lista de PRs */}
-                  {prs.length === 0 ? (
+                  {displayPRs.length === 0 ? (
                     <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
-                      No hay registros de PR aún
+                      {isCoach ? 'No hay registros de PR aún' : (prs.length === 0 ? 'No hay registros de PR aún' : 'Sin registros hoy')}
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {prs.map((pr) => (
+                      {displayPRs.map((pr) => (
                         <div
                           key={pr.id}
                           className={`p-3 rounded-lg ${
