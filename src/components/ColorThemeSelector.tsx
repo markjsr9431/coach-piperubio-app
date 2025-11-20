@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebaseConfig'
-import { doc, updateDoc, getDoc } from 'firebase/firestore'
+import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
 
 interface ColorThemeSelectorProps {
   isOpen: boolean
@@ -136,7 +136,6 @@ const ColorThemeSelector = ({ isOpen, onClose }: ColorThemeSelectorProps) => {
         }).catch(async (error) => {
           // Si el documento no existe, crearlo
           if (error.code === 'not-found') {
-            const { setDoc } = await import('firebase/firestore')
             await setDoc(userRef, {
               themeColor: colorValue,
               createdAt: new Date(),

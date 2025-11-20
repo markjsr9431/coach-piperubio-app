@@ -8,6 +8,7 @@ import UpdateProfileModal from './UpdateProfileModal'
 import ColorThemeSelector from './ColorThemeSelector'
 import { db } from '../firebaseConfig'
 import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore'
+import { updateProfile } from 'firebase/auth'
 
 const TopBanner = () => {
   const navigate = useNavigate()
@@ -90,7 +91,6 @@ const TopBanner = () => {
           // Actualizar photoURL en Auth si hay foto y el usuario no tiene una o es diferente
           if (clientData.profilePhoto && clientData.profilePhoto !== user.photoURL) {
             try {
-              const { updateProfile } = await import('firebase/auth')
               await updateProfile(user, {
                 photoURL: clientData.profilePhoto
               })
@@ -121,7 +121,6 @@ const TopBanner = () => {
           // Actualizar photoURL en Auth si hay una nueva foto
           if (newPhoto && user && newPhoto !== user.photoURL) {
             try {
-              const { updateProfile } = await import('firebase/auth')
               await updateProfile(user, {
                 photoURL: newPhoto
               })
