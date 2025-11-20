@@ -3,7 +3,7 @@ import Calendar from 'react-calendar'
 import 'react-calendar/dist/Calendar.css'
 import { useTheme } from '../contexts/ThemeContext'
 import { db } from '../firebaseConfig'
-import { doc, getDoc, collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore'
+import { doc, getDoc } from 'firebase/firestore'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface TrainingCalendarProps {
@@ -15,8 +15,6 @@ type Value = ValuePiece | [ValuePiece, ValuePiece]
 
 interface DayRecord {
   date: string // ISO date string (YYYY-MM-DD)
-  hasWorkout: boolean
-  hasFeedback: boolean
   hasLoadEffort: boolean
 }
 
@@ -26,8 +24,7 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
   const [records, setRecords] = useState<Map<string, DayRecord>>(new Map())
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
-  const [dayFeedback, setDayFeedback] = useState<any>(null)
+  const [showLoadModal, setShowLoadModal] = useState(false)
   const [dayLoadEffort, setDayLoadEffort] = useState<any>(null)
 
   useEffect(() => {
@@ -40,76 +37,7 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
       try {
         const recordsMap = new Map<string, DayRecord>()
 
-        // 1. Cargar entrenamientos desde progress/summary (comentado - ya no se usa)
-        // try {
-        //   const progressRef = doc(db, 'clients', clientId, 'progress', 'summary')
-        //   const progressDoc = await getDoc(progressRef)
-        //   if (progressDoc.exists()) {
-        //     const progressData = progressDoc.data()
-        //     const dailyProgress = progressData.dailyProgress || {}
-        //     
-        //     Object.keys(dailyProgress).forEach((dateKey) => {
-        //       if (dailyProgress[dateKey] === true) {
-        //         const existing = recordsMap.get(dateKey) || {
-        //           date: dateKey,
-        //           hasWorkout: false,
-        //           hasFeedback: false,
-        //           hasLoadEffort: false
-        //         }
-        //         existing.hasWorkout = true
-        //         recordsMap.set(dateKey, existing)
-        //       }
-        //     })
-        //   }
-        // } catch (error) {
-        //   console.error('Error loading workout progress:', error)
-        // }
-
-        // 2. Cargar feedback diario desde Firestore
-        try {
-          const feedbackRef = collection(db, 'dailyFeedback')
-          const feedbackQuery = query(
-            feedbackRef,
-            where('clientId', '==', clientId),
-            orderBy('date', 'asc')
-          )
-          const feedbackSnapshot = await getDocs(feedbackQuery)
-          
-          feedbackSnapshot.forEach((feedbackDoc) => {
-            const feedbackData = feedbackDoc.data()
-            let dateKey: string
-            
-            // Extraer fecha del feedback
-            if (feedbackData.date) {
-              if (feedbackData.date.toDate) {
-                const feedbackDate = feedbackData.date.toDate()
-                dateKey = feedbackDate.toISOString().split('T')[0]
-              } else if (feedbackData.date instanceof Timestamp) {
-                const feedbackDate = feedbackData.date.toDate()
-                dateKey = feedbackDate.toISOString().split('T')[0]
-              } else {
-                const feedbackDate = new Date(feedbackData.date)
-                dateKey = feedbackDate.toISOString().split('T')[0]
-              }
-            } else {
-              return // Si no hay fecha, saltar este documento
-            }
-            
-            const existing = recordsMap.get(dateKey) || {
-              date: dateKey,
-              hasWorkout: false,
-              hasFeedback: false,
-              hasLoadEffort: false
-            }
-            // Marcar como feedback
-            existing.hasFeedback = true
-            recordsMap.set(dateKey, existing)
-          })
-        } catch (error) {
-          console.error('Error loading feedback data:', error)
-        }
-
-        // 3. Cargar registros de carga/esfuerzo
+        // Cargar registros de carga/esfuerzo
         try {
           const loadEffortRef = doc(db, 'clients', clientId, 'dailyRecords', 'load_effort')
           const loadEffortDoc = await getDoc(loadEffortRef)
@@ -134,8 +62,6 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
               const dateKey = recordDate.toISOString().split('T')[0]
               const existing = recordsMap.get(dateKey) || {
                 date: dateKey,
-                hasWorkout: false,
-                hasFeedback: false,
                 hasLoadEffort: false
               }
               existing.hasLoadEffort = true
@@ -166,25 +92,12 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
     
     if (!dayRecord) return ''
     
-    const classes: string[] = []
-    
-    // Nueva lógica de colores basada en Encuesta y Carga
-    const hasFeedback = dayRecord.hasFeedback
-    const hasLoadEffort = dayRecord.hasLoadEffort
-    
-    if (hasFeedback && hasLoadEffort) {
-      // Ambos: Encuesta y Carga
-      classes.push('has-both')
-    } else if (hasFeedback && !hasLoadEffort) {
-      // Solo Encuesta
-      classes.push('has-feedback-only')
-    } else if (!hasFeedback && hasLoadEffort) {
-      // Solo Carga
-      classes.push('has-load-effort-only')
+    // Solo aplicar color si hay registro de carga
+    if (dayRecord.hasLoadEffort) {
+      return 'has-load-effort'
     }
-    // Si no hay ninguno, no se agrega clase (sin color)
     
-    return classes.join(' ')
+    return ''
   }
 
 
@@ -209,87 +122,48 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
         tileClassName={getDayClassName}
         onClickDay={async (date) => {
           const dateKey = date.toISOString().split('T')[0]
-          const dayRecord = records.get(dateKey)
-          
-          if (!dayRecord) return
-          
           setSelectedDate(date)
           
-          // Cargar feedback del día si existe
+          // Cargar registro de carga/esfuerzo del día
           try {
-            const dayStart = new Date(date)
-            dayStart.setHours(0, 0, 0, 0)
-            const dayEnd = new Date(date)
-            dayEnd.setHours(23, 59, 59, 999)
+            const loadEffortRef = doc(db, 'clients', clientId, 'dailyRecords', 'load_effort')
+            const loadEffortDoc = await getDoc(loadEffortRef)
             
-            const dayStartTimestamp = Timestamp.fromDate(dayStart)
-            const dayEndTimestamp = Timestamp.fromDate(dayEnd)
-            
-            // Cargar feedback diario
-            const feedbackRef = collection(db, 'dailyFeedback')
-            const feedbackQuery = query(
-              feedbackRef,
-              where('clientId', '==', clientId),
-              where('date', '>=', dayStartTimestamp),
-              where('date', '<=', dayEndTimestamp)
-            )
-            const feedbackSnapshot = await getDocs(feedbackQuery)
-            
-            if (!feedbackSnapshot.empty) {
-              const feedbackDoc = feedbackSnapshot.docs[0]
-              setDayFeedback({
-                id: feedbackDoc.id,
-                ...feedbackDoc.data()
-              })
-            } else {
-              setDayFeedback(null)
-            }
-            
-            // Cargar registro de carga/esfuerzo del día
-            try {
-              const loadEffortRef = doc(db, 'clients', clientId, 'dailyRecords', 'load_effort')
-              const loadEffortDoc = await getDoc(loadEffortRef)
+            if (loadEffortDoc.exists()) {
+              const loadEffortData = loadEffortDoc.data()
+              const recordsArray = loadEffortData.records || []
               
-              if (loadEffortDoc.exists()) {
-                const loadEffortData = loadEffortDoc.data()
-                const recordsArray = loadEffortData.records || []
+              // Buscar registro que coincida con la fecha seleccionada
+              const dayRecord = recordsArray.find((record: any) => {
+                if (!record.date) return false
                 
-                // Buscar registro que coincida con la fecha seleccionada
-                const dayRecord = recordsArray.find((record: any) => {
-                  if (!record.date) return false
-                  
-                  let recordDate: Date
-                  if (typeof record.date === 'number') {
-                    recordDate = new Date(record.date)
-                  } else if (record.date.toDate) {
-                    recordDate = record.date.toDate()
-                  } else {
-                    recordDate = new Date(record.date)
-                  }
-                  
-                  const recordDateKey = recordDate.toISOString().split('T')[0]
-                  return recordDateKey === dateKey
-                })
-                
-                if (dayRecord) {
-                  setDayLoadEffort(dayRecord)
+                let recordDate: Date
+                if (typeof record.date === 'number') {
+                  recordDate = new Date(record.date)
+                } else if (record.date.toDate) {
+                  recordDate = record.date.toDate()
                 } else {
-                  setDayLoadEffort(null)
+                  recordDate = new Date(record.date)
                 }
+                
+                const recordDateKey = recordDate.toISOString().split('T')[0]
+                return recordDateKey === dateKey
+              })
+              
+              if (dayRecord) {
+                setDayLoadEffort(dayRecord)
               } else {
                 setDayLoadEffort(null)
               }
-            } catch (error) {
-              console.error('Error loading load/effort record:', error)
+            } else {
               setDayLoadEffort(null)
             }
             
-            setShowFeedbackModal(true)
+            setShowLoadModal(true)
           } catch (error) {
-            console.error('Error loading day feedback:', error)
-            setDayFeedback(null)
+            console.error('Error loading load/effort record:', error)
             setDayLoadEffort(null)
-            setShowFeedbackModal(true)
+            setShowLoadModal(true)
           }
         }}
         tileContent={({ date, view }) => {
@@ -297,22 +171,14 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
           const dateKey = date.toISOString().split('T')[0]
           const dayRecord = records.get(dateKey)
           
-          if (!dayRecord) return null
+          if (!dayRecord || !dayRecord.hasLoadEffort) return null
           
           return (
             <div className="flex justify-center items-center gap-0.5 mt-1">
-              {dayRecord.hasFeedback && (
-                <div 
-                  className="w-1.5 h-1.5 rounded-full bg-green-500"
-                  title="Encuesta"
-                />
-              )}
-              {dayRecord.hasLoadEffort && (
-                <div 
-                  className="w-1.5 h-1.5 rounded-full bg-orange-500"
-                  title="Carga/Esfuerzo"
-                />
-              )}
+              <div 
+                className="w-1.5 h-1.5 rounded-full bg-orange-500"
+                title="Carga/Implementos"
+              />
             </div>
           )
         }}
@@ -329,21 +195,9 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
         </h4>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
-            <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-              Solo Encuesta (Esfuerzo/Satisfacción)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-orange-500 flex-shrink-0"></div>
             <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-              Solo Carga (Implementos/Registro)
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-purple-500 flex-shrink-0"></div>
-            <span className={theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}>
-              Encuesta y Carga (Completo)
+              Día con Registro de Carga/Implementos
             </span>
           </div>
         </div>
@@ -371,16 +225,8 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
           background: ${theme === 'dark' ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)'};
         }
         
-        .react-calendar__tile.has-feedback-only {
-          background: ${theme === 'dark' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(34, 197, 94, 0.15)'};
-        }
-        
-        .react-calendar__tile.has-load-effort-only {
+        .react-calendar__tile.has-load-effort {
           background: ${theme === 'dark' ? 'rgba(249, 115, 22, 0.3)' : 'rgba(249, 115, 22, 0.15)'};
-        }
-        
-        .react-calendar__tile.has-both {
-          background: ${theme === 'dark' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(168, 85, 247, 0.15)'};
         }
         
         .react-calendar__tile:hover {
@@ -408,12 +254,12 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
         }
       `}</style>
       
-      {/* Modal de Detalles del Día */}
+      {/* Modal de Detalles de Carga */}
       <AnimatePresence>
-        {showFeedbackModal && selectedDate && (
+        {showLoadModal && selectedDate && (
           <div 
             className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4"
-            onClick={() => setShowFeedbackModal(false)}
+            onClick={() => setShowLoadModal(false)}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -436,7 +282,7 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
                   })}
                 </h3>
                 <button
-                  onClick={() => setShowFeedbackModal(false)}
+                  onClick={() => setShowLoadModal(false)}
                   className={`p-2 rounded-lg transition-colors ${
                     theme === 'dark' 
                       ? 'hover:bg-slate-700 text-slate-300' 
@@ -450,160 +296,93 @@ const TrainingCalendar = ({ clientId }: TrainingCalendarProps) => {
               </div>
               
               <div className="space-y-4">
-                {(() => {
-                  const dateKey = selectedDate.toISOString().split('T')[0]
-                  const dayRecord = records.get(dateKey)
-                  
-                  return (
-                    <>
-                      {dayLoadEffort ? (
-                        <div className={`p-4 rounded-lg ${
-                          theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/50' : 'bg-orange-50 border border-orange-200'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                            <span className={`font-semibold ${
-                              theme === 'dark' ? 'text-orange-300' : 'text-orange-700'
-                            }`}>
-                              Registro de Carga/Esfuerzo
-                            </span>
-                          </div>
-                          <div className="space-y-3">
-                            {dayLoadEffort.implementos && dayLoadEffort.implementos.length > 0 && (
-                              <div>
-                                <span className={`text-sm font-medium ${
-                                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                {dayLoadEffort ? (
+                  <div className={`p-4 rounded-lg ${
+                    theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/50' : 'bg-orange-50 border border-orange-200'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                      <span className={`font-semibold text-lg ${
+                        theme === 'dark' ? 'text-orange-300' : 'text-orange-700'
+                      }`}>
+                        Registro de Carga/Implementos
+                      </span>
+                    </div>
+                    {dayLoadEffort.implementos && dayLoadEffort.implementos.length > 0 ? (
+                      <div className="space-y-3">
+                        <div>
+                          <span className={`text-sm font-medium ${
+                            theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                          }`}>
+                            Implementos utilizados:
+                          </span>
+                          <div className="mt-3 space-y-2">
+                            {dayLoadEffort.implementos.map((impl: any, index: number) => (
+                              <div key={index} className={`p-3 rounded-lg border ${
+                                theme === 'dark' ? 'bg-slate-700/50 border-slate-600' : 'bg-white border-gray-200'
+                              }`}>
+                                <div className={`font-semibold text-base mb-1 ${
+                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
                                 }`}>
-                                  Implementos utilizados:
-                                </span>
-                                <div className="mt-2 space-y-2">
-                                  {dayLoadEffort.implementos.map((impl: any, index: number) => (
-                                    <div key={index} className={`p-2 rounded ${
-                                      theme === 'dark' ? 'bg-slate-700/50' : 'bg-white'
-                                    }`}>
-                                      <div className={`font-semibold ${
-                                        theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                      }`}>
-                                        {impl.implement || 'Implemento'}
-                                      </div>
-                                      {impl.load && (
-                                        <div className={`text-sm ${
-                                          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                                        }`}>
-                                          Carga: {impl.load}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
+                                  {impl.implement || 'Implemento'}
                                 </div>
+                                {impl.load && (
+                                  <div className={`text-sm ${
+                                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                                  }`}>
+                                    <span className="font-medium">Carga:</span> {impl.load}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {dayLoadEffort.date && (
-                              <div className={`text-xs ${
-                                theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
-                              }`}>
-                                {(() => {
-                                  let recordDate: Date
-                                  if (typeof dayLoadEffort.date === 'number') {
-                                    recordDate = new Date(dayLoadEffort.date)
-                                  } else if (dayLoadEffort.date.toDate) {
-                                    recordDate = dayLoadEffort.date.toDate()
-                                  } else {
-                                    recordDate = new Date(dayLoadEffort.date)
-                                  }
-                                  return recordDate.toLocaleString('es-ES', {
-                                    day: 'numeric',
-                                    month: 'long',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })
-                                })()}
-                              </div>
-                            )}
+                            ))}
                           </div>
                         </div>
-                      ) : dayRecord?.hasLoadEffort ? (
-                        <div className={`p-4 rounded-lg ${
-                          theme === 'dark' ? 'bg-orange-500/20 border border-orange-500/50' : 'bg-orange-50 border border-orange-200'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                            <span className={`font-semibold ${
-                              theme === 'dark' ? 'text-orange-300' : 'text-orange-700'
-                            }`}>
-                              Registro de Carga/Esfuerzo (sin detalles disponibles)
-                            </span>
+                        {dayLoadEffort.date && (
+                          <div className={`text-xs pt-2 border-t ${
+                            theme === 'dark' ? 'text-slate-400 border-slate-600' : 'text-gray-500 border-gray-300'
+                          }`}>
+                            <span className="font-medium">Registrado el:</span>{' '}
+                            {(() => {
+                              let recordDate: Date
+                              if (typeof dayLoadEffort.date === 'number') {
+                                recordDate = new Date(dayLoadEffort.date)
+                              } else if (dayLoadEffort.date.toDate) {
+                                recordDate = dayLoadEffort.date.toDate()
+                              } else {
+                                recordDate = new Date(dayLoadEffort.date)
+                              }
+                              return recordDate.toLocaleString('es-ES', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            })()}
                           </div>
-                        </div>
-                      ) : null}
-                      
-                      {dayFeedback ? (
-                        <div className={`p-4 rounded-lg ${
-                          theme === 'dark' ? 'bg-green-500/20 border border-green-500/50' : 'bg-green-50 border border-green-200'
-                        }`}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className={`font-semibold ${
-                              theme === 'dark' ? 'text-green-300' : 'text-green-700'
-                            }`}>
-                              Retroalimentación del Día
-                            </span>
-                          </div>
-                          <div className="space-y-2">
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                              }`}>
-                                Sensación de Esfuerzo (RPE):{' '}
-                              </span>
-                              <span className={`font-bold ${
-                                theme === 'dark' ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                {dayFeedback.rpe}/10
-                              </span>
-                            </div>
-                            <div>
-                              <span className={`text-sm font-medium ${
-                                theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
-                              }`}>
-                                Estado de Ánimo: {' '}
-                              </span>
-                              <span className="text-2xl">
-                                {dayFeedback.mood === 1 ? '😢' : 
-                                 dayFeedback.mood === 2 ? '😕' : 
-                                 dayFeedback.mood === 3 ? '😐' : 
-                                 dayFeedback.mood === 4 ? '🙂' : 
-                                 dayFeedback.mood === 5 ? '😄' : '😐'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : dayRecord?.hasFeedback ? (
-                        <div className={`p-4 rounded-lg ${
-                          theme === 'dark' ? 'bg-green-500/20 border border-green-500/50' : 'bg-green-50 border border-green-200'
-                        }`}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className={`font-semibold ${
-                              theme === 'dark' ? 'text-green-300' : 'text-green-700'
-                            }`}>
-                              Encuesta registrada (sin detalles disponibles)
-                            </span>
-                          </div>
-                        </div>
-                      ) : null}
-                      
-                      {!dayRecord && (
-                        <div className={`text-center py-4 ${
-                          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-                        }`}>
-                          No hay actividad registrada para este día
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
+                        )}
+                      </div>
+                    ) : (
+                      <div className={`text-sm ${
+                        theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                      }`}>
+                        No hay implementos registrados para este día
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`text-center py-8 ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                  }`}>
+                    <div className="mb-2">
+                      <svg className="w-12 h-12 mx-auto text-orange-500/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <p className="font-medium">No hay registro de carga para esta fecha</p>
+                    <p className="text-xs mt-1 opacity-75">El cliente aún no ha registrado implementos para este día</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

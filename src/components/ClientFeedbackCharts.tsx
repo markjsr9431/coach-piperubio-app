@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { db } from '../firebaseConfig'
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore'
+import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -40,6 +40,8 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
   const { theme } = useTheme()
   const [feedbackData, setFeedbackData] = useState<FeedbackData[]>([])
   const [loading, setLoading] = useState(true)
+  const [timeRange, setTimeRange] = useState<'3months' | '6months' | '1year' | 'all'>('3months')
+  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day')
 
   useEffect(() => {
     if (!clientId) return
@@ -48,11 +50,42 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
       try {
         setLoading(true)
         const feedbackRef = collection(db, 'dailyFeedback')
-        const q = query(
-          feedbackRef,
-          where('clientId', '==', clientId),
-          orderBy('date', 'asc')
-        )
+        
+        // Calcular fecha de inicio basada en timeRange
+        let startDate: Date | null = null
+        if (timeRange !== 'all') {
+          const now = new Date()
+          switch (timeRange) {
+            case '3months':
+              startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
+              break
+            case '6months':
+              startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
+              break
+            case '1year':
+              startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+              break
+          }
+        }
+        
+        // Construir query con filtro de fecha si aplica
+        let q
+        if (startDate) {
+          const startTimestamp = Timestamp.fromDate(startDate)
+          q = query(
+            feedbackRef,
+            where('clientId', '==', clientId),
+            where('date', '>=', startTimestamp),
+            orderBy('date', 'asc')
+          )
+        } else {
+          q = query(
+            feedbackRef,
+            where('clientId', '==', clientId),
+            orderBy('date', 'asc')
+          )
+        }
+        
         const snapshot = await getDocs(q)
         
         const feedbackList: FeedbackData[] = []
@@ -83,7 +116,7 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
     }
 
     loadFeedback()
-  }, [clientId])
+  }, [clientId, timeRange])
 
   // Formatear fecha para el eje X
   const formatDate = (date: Date): string => {
@@ -117,7 +150,7 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
         callbacks: {
           title: (context: any) => {
             const index = context[0].dataIndex
-            const date = feedbackData[index]?.date
+            const date = processedData[index]?.date
             return date ? date.toLocaleDateString('es-ES', { 
               day: '2-digit', 
               month: 'long', 
@@ -155,13 +188,51 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
     }
   }
 
+  // Procesar datos según groupBy
+  const processData = (data: FeedbackData[]): FeedbackData[] => {
+    if (groupBy === 'day') {
+      return data
+    }
+    
+    // Agrupar por semana o mes
+    const grouped = new Map<string, { rpe: number[], mood: number[], date: Date }>()
+    
+    data.forEach(item => {
+      let key: string
+      if (groupBy === 'week') {
+        const weekStart = new Date(item.date)
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+        key = weekStart.toISOString().split('T')[0]
+      } else { // month
+        key = `${item.date.getFullYear()}-${String(item.date.getMonth() + 1).padStart(2, '0')}`
+      }
+      
+      if (!grouped.has(key)) {
+        grouped.set(key, { rpe: [], mood: [], date: item.date })
+      }
+      
+      const group = grouped.get(key)!
+      group.rpe.push(item.rpe)
+      group.mood.push(item.mood)
+    })
+    
+    // Calcular promedios
+    return Array.from(grouped.values()).map(group => ({
+      date: group.date,
+      rpe: Math.round((group.rpe.reduce((a, b) => a + b, 0) / group.rpe.length) * 10) / 10,
+      mood: Math.round((group.mood.reduce((a, b) => a + b, 0) / group.mood.length) * 10) / 10
+    })).sort((a, b) => a.date.getTime() - b.date.getTime())
+  }
+  
+  const processedData = processData(feedbackData)
+
   // Datos para gráfica de RPE
   const rpeChartData = {
-    labels: feedbackData.map(item => formatDate(item.date)),
+    labels: processedData.map(item => formatDate(item.date)),
     datasets: [
       {
         label: 'RPE (Sensación de Esfuerzo)',
-        data: feedbackData.map(item => item.rpe),
+        data: processedData.map(item => item.rpe),
         borderColor: theme === 'dark' ? '#3b82f6' : '#2563eb',
         backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(37, 99, 235, 0.1)',
         borderWidth: 2,
@@ -177,11 +248,11 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
 
   // Datos para gráfica de Ánimo
   const moodChartData = {
-    labels: feedbackData.map(item => formatDate(item.date)),
+    labels: processedData.map(item => formatDate(item.date)),
     datasets: [
       {
         label: 'Estado de Ánimo',
-        data: feedbackData.map(item => item.mood),
+        data: processedData.map(item => item.mood),
         borderColor: theme === 'dark' ? '#10b981' : '#059669',
         backgroundColor: theme === 'dark' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(5, 150, 105, 0.1)',
         borderWidth: 2,
@@ -283,6 +354,58 @@ const ClientFeedbackCharts = ({ clientId }: ClientFeedbackChartsProps) => {
 
   return (
     <div className="space-y-8">
+      {/* Filtros */}
+      <div className={`p-4 rounded-lg flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between ${
+        theme === 'dark' ? 'bg-slate-800/50 border border-slate-700' : 'bg-white/50 border border-gray-200'
+      }`}>
+        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+          {/* Filtro de Rango de Tiempo */}
+          <div className="flex items-center gap-2">
+            <label className={`text-sm font-semibold whitespace-nowrap ${
+              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+            }`}>
+              Rango de Tiempo:
+            </label>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value as typeof timeRange)}
+              className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
+                theme === 'dark'
+                  ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <option value="3months">Últimos 3 Meses</option>
+              <option value="6months">Últimos 6 Meses</option>
+              <option value="1year">Todo el Año</option>
+              <option value="all">Todo el Historial</option>
+            </select>
+          </div>
+          
+          {/* Filtro de Agrupación */}
+          <div className="flex items-center gap-2">
+            <label className={`text-sm font-semibold whitespace-nowrap ${
+              theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+            }`}>
+              Agrupación:
+            </label>
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as typeof groupBy)}
+              className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
+                theme === 'dark'
+                  ? 'bg-slate-700 border-slate-600 text-white hover:bg-slate-600'
+                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <option value="day">Ver por Día</option>
+              <option value="week">Ver Promedio Semanal</option>
+              <option value="month">Ver Promedio Mensual</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
       {/* Gráfica de RPE */}
       <div className={`p-4 rounded-lg ${
         theme === 'dark' ? 'bg-slate-800/50 border border-slate-700' : 'bg-white/50 border border-gray-200'

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db, auth } from '../firebaseConfig'
-import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, getDocs } from 'firebase/firestore'
+import { doc, getDoc, updateDoc, serverTimestamp, collection, addDoc, query, orderBy, onSnapshot, Timestamp, deleteDoc, getDocs, limit, where } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
 import TrainingCalendar from './TrainingCalendar'
 import ClientFeedbackCharts from './ClientFeedbackCharts'
@@ -46,6 +46,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   const [photoRemoved, setPhotoRemoved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [payments, setPayments] = useState<any[]>([])
+  const [lastFeedback, setLastFeedback] = useState<{rpe: number, mood: number, date: Date} | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paymentFormData, setPaymentFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -60,6 +61,7 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
   const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [showAnthropometricModal, setShowAnthropometricModal] = useState(false)
+  const [activeTab, setActiveTab] = useState<'informacion' | 'progreso' | 'analisis'>('informacion')
   const [anthropometricMeasures, setAnthropometricMeasures] = useState<any[]>([])
   const [showAnthropometricHistory, setShowAnthropometricHistory] = useState(false)
   const [anthropometricFormData, setAnthropometricFormData] = useState({
@@ -174,6 +176,65 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
     })
 
     return () => unsubscribe()
+  }, [clientId, isCoach])
+
+  // Cargar último feedback diario
+  useEffect(() => {
+    if (!clientId || !isCoach) {
+      setLastFeedback(null)
+      return
+    }
+
+    const loadLastFeedback = async () => {
+      try {
+        // [DEBUG 1] Muestra el ID del cliente que se está buscando
+        console.log('DEBUG: Buscando último feedback para clientId:', clientId)
+
+        const feedbackRef = collection(db, 'dailyFeedback')
+        const q = query(
+          feedbackRef,
+          where('clientId', '==', clientId),
+          orderBy('date', 'desc'),
+          limit(1)
+        )
+        const snapshot = await getDocs(q)
+        
+        // [DEBUG 2] Muestra el resultado de la consulta
+        console.log('DEBUG: Documentos de feedback encontrados:', snapshot.docs.length)
+        
+        if (!snapshot.empty) {
+          const feedbackDoc = snapshot.docs[0]
+          const data = feedbackDoc.data()
+          
+          // Procesar fecha
+          let feedbackDate: Date
+          if (data.date?.toDate) {
+            feedbackDate = data.date.toDate()
+          } else if (data.date instanceof Timestamp) {
+            feedbackDate = data.date.toDate()
+          } else if (data.date) {
+            feedbackDate = new Date(data.date)
+          } else {
+            feedbackDate = new Date()
+          }
+          
+          setLastFeedback({
+            rpe: data.rpe || 0,
+            mood: data.mood || 0,
+            date: feedbackDate
+          })
+        } else {
+          console.log('DEBUG: No se encontró feedback para este cliente.')
+          setLastFeedback(null)
+        }
+      } catch (error) {
+        // [DEBUG 3] Captura y muestra cualquier error de Firebase/red
+        console.error('DEBUG ERROR: Error al cargar el último feedback:', error)
+        setLastFeedback(null)
+      }
+    }
+
+    loadLastFeedback()
   }, [clientId, isCoach])
 
   // Función helper para parsear fecha desde string YYYY-MM-DD en hora local
@@ -878,8 +939,88 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           {clientStatus === 'pending' ? 'Pendiente por empezar' : clientStatus === 'active' ? 'Activo' : 'Inactivo'}
         </span>
       </div>
-      {/* Form - Layout Horizontal */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start mt-8">
+      {lastFeedback && (
+        <div className={`mt-4 mb-6 p-4 rounded-xl shadow-lg ${theme === 'dark' ? 'bg-slate-800/80 border border-slate-700' : 'bg-white border border-gray-200'}`}>
+          <h3 className={`text-md font-bold mb-3 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Último Feedback Diario</h3>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm">
+            {/* Fecha */}
+            <p className={`mb-2 sm:mb-0 ${theme === 'dark' ? 'text-slate-400' : 'text-gray-600'}`}>
+              Fecha: <span className="font-semibold">{lastFeedback.date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+            </p>
+            {/* Valores */}
+            <div className="flex gap-6 items-center">
+              {/* RPE */}
+              <div className="flex items-center gap-1">
+                <span className={`${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>RPE (Esfuerzo):</span>
+                <span className={`font-bold text-lg ${lastFeedback.rpe > 7 ? 'text-red-500' : lastFeedback.rpe > 4 ? 'text-yellow-500' : 'text-green-500'}`}>
+                  {lastFeedback.rpe}
+                </span>
+              </div>
+              {/* Ánimo */}
+              <div className="flex items-center gap-1">
+                <span className={`${theme === 'dark' ? 'text-slate-300' : 'text-gray-700'}`}>Ánimo:</span>
+                <span className="text-2xl font-bold">
+                  {lastFeedback.mood === 1 ? '😞' : lastFeedback.mood === 2 ? '😐' : lastFeedback.mood === 3 ? '🙂' : '😄'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Sistema de Pestañas */}
+      <div className="mt-8">
+        {/* Navegación de Pestañas */}
+        <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-700/50 dark:border-gray-300/50">
+          <button
+            onClick={() => setActiveTab('informacion')}
+            className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
+              activeTab === 'informacion'
+                ? theme === 'dark'
+                  ? 'text-primary-400 border-primary-400'
+                  : 'text-primary-600 border-primary-600'
+                : theme === 'dark'
+                ? 'text-slate-400 border-transparent hover:text-slate-300'
+                : 'text-gray-600 border-transparent hover:text-gray-900'
+            }`}
+          >
+            Información
+          </button>
+          <button
+            onClick={() => setActiveTab('progreso')}
+            className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
+              activeTab === 'progreso'
+                ? theme === 'dark'
+                  ? 'text-primary-400 border-primary-400'
+                  : 'text-primary-600 border-primary-600'
+                : theme === 'dark'
+                ? 'text-slate-400 border-transparent hover:text-slate-300'
+                : 'text-gray-600 border-transparent hover:text-gray-900'
+            }`}
+          >
+            Progreso
+          </button>
+          <button
+            onClick={() => setActiveTab('analisis')}
+            className={`px-4 py-2 font-semibold transition-colors border-b-2 ${
+              activeTab === 'analisis'
+                ? theme === 'dark'
+                  ? 'text-primary-400 border-primary-400'
+                  : 'text-primary-600 border-primary-600'
+                : theme === 'dark'
+                ? 'text-slate-400 border-transparent hover:text-slate-300'
+                : 'text-gray-600 border-transparent hover:text-gray-900'
+            }`}
+          >
+            Análisis
+          </button>
+        </div>
+
+        {/* Contenido de Pestañas */}
+        {activeTab === 'informacion' && (
+          <div>
+            {/* Form - Layout Horizontal */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {/* Botón Información Personal */}
         <button
           onClick={() => setShowPersonalInfoModal(true)}
@@ -1000,6 +1141,67 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
                       </label>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Resumen de Último Feedback Diario */}
+              <div className="mb-6">
+                <label className={`block text-sm font-semibold mb-3 ${
+                  theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                }`}>
+                  Último Feedback Diario
+                </label>
+                <div className={`p-4 rounded-lg border ${
+                  theme === 'dark' 
+                    ? 'bg-slate-700/50 border-slate-600' 
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
+                  {lastFeedback ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className={`text-xs font-medium mb-1 ${
+                          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                        }`}>
+                          RPE
+                        </p>
+                        <p className={`text-lg font-bold ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {lastFeedback.rpe}
+                        </p>
+                      </div>
+                      <div>
+                        <p className={`text-xs font-medium mb-1 ${
+                          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                        }`}>
+                          Ánimo
+                        </p>
+                        <p className={`text-lg font-bold ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {lastFeedback.mood}
+                        </p>
+                      </div>
+                      <div>
+                        <p className={`text-xs font-medium mb-1 ${
+                          theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                        }`}>
+                          Fecha
+                        </p>
+                        <p className={`text-sm ${
+                          theme === 'dark' ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          {lastFeedback.date.toLocaleDateString('es-ES')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                    }`}>
+                      Aún sin registro de feedback.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -1220,19 +1422,59 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
           </button>
         )}
 
-        {/* Sección Calendario de Actividad */}
-        {clientId && isCoach && (
-          <div className={`p-4 rounded-xl shadow-lg ${
-            theme === 'dark' 
-              ? 'bg-slate-800/80 border border-slate-700' 
-              : 'bg-white border border-gray-200'
-          }`}>
-            <h2 className={`text-lg sm:text-xl font-bold mb-4 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              Calendario de Actividad
-            </h2>
-            <TrainingCalendar clientId={clientId} />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'progreso' && (
+          <div>
+            {/* Sección Calendario de Actividad */}
+            {clientId && isCoach && (
+              <div className={`p-4 rounded-xl shadow-lg ${
+                theme === 'dark' 
+                  ? 'bg-slate-800/80 border border-slate-700' 
+                  : 'bg-white border border-gray-200'
+              }`}>
+                <h2 className={`text-lg sm:text-xl font-bold mb-4 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Calendario de Actividad
+                </h2>
+                <TrainingCalendar clientId={clientId} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'analisis' && (
+          <div>
+            {/* Sección de Gráficas de Feedback */}
+            {isCoach && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className={`p-6 rounded-xl border ${
+                  theme === 'dark' 
+                    ? 'bg-slate-800/50 border-slate-700' 
+                    : 'bg-white/50 border-gray-200'
+                }`}
+              >
+                <div className="mb-6">
+                  <h2 className={`text-xl font-bold mb-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Análisis de Feedback
+                  </h2>
+                  <p className={`text-sm ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
+                  }`}>
+                    Evolución de Sensación de Esfuerzo (RPE) y Estado de Ánimo
+                  </p>
+                </div>
+                <ClientFeedbackCharts clientId={clientId} />
+              </motion.div>
+            )}
           </div>
         )}
       </div>
@@ -1429,33 +1671,6 @@ const ClientInfoSection = ({ clientId, showSaveButtons = false, showProgressButt
         </div>
       )}
 
-      {/* Sección de Gráficas de Feedback */}
-      {isCoach && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className={`mt-8 p-6 rounded-xl border ${
-            theme === 'dark' 
-              ? 'bg-slate-800/50 border-slate-700' 
-              : 'bg-white/50 border-gray-200'
-          }`}
-        >
-          <div className="mb-6">
-            <h2 className={`text-xl font-bold mb-2 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              Análisis de Feedback
-            </h2>
-            <p className={`text-sm ${
-              theme === 'dark' ? 'text-slate-400' : 'text-gray-600'
-            }`}>
-              Evolución de Sensación de Esfuerzo (RPE) y Estado de Ánimo
-            </p>
-          </div>
-          <ClientFeedbackCharts clientId={clientId} />
-        </motion.div>
-      )}
 
       {/* Modal de Gestión de Suscripción y Pagos */}
       {showSubscriptionModal && (

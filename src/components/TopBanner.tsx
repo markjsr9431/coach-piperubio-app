@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import UpdateProfileModal from './UpdateProfileModal'
 import ColorThemeSelector from './ColorThemeSelector'
 import { db } from '../firebaseConfig'
-import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, onSnapshot, collection, query, where, getDocs, getDoc } from 'firebase/firestore'
 import { updateProfile } from 'firebase/auth'
 
 const TopBanner = () => {
@@ -24,6 +24,7 @@ const TopBanner = () => {
   const [showConfigMenu, setShowConfigMenu] = useState(false)
   const [clientName, setClientName] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [coachSlogan, setCoachSlogan] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const configMenuRef = useRef<HTMLDivElement>(null)
   const isHomePage = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/home'
@@ -142,6 +143,35 @@ const TopBanner = () => {
       }
     }
   }, [user, isCoach])
+
+  // Cargar eslogan del coach desde Firestore
+  useEffect(() => {
+    if (!isCoach || !user?.uid) {
+      setCoachSlogan(null)
+      return
+    }
+
+    const loadCoachSlogan = async () => {
+      try {
+        const userRef = doc(db, 'users', user.uid)
+        const userDoc = await getDoc(userRef)
+        
+        if (userDoc.exists()) {
+          const data = userDoc.data()
+          // Buscar el campo 'slogan' o 'eslogan'
+          const slogan = data.slogan || data.eslogan || null
+          setCoachSlogan(slogan)
+        } else {
+          setCoachSlogan(null)
+        }
+      } catch (error) {
+        console.error('Error loading coach slogan:', error)
+        setCoachSlogan(null)
+      }
+    }
+
+    loadCoachSlogan()
+  }, [isCoach, user?.uid])
 
   // Función helper para obtener iniciales: "J. R."
   const getInitials = (fullName: string): string => {
@@ -429,7 +459,7 @@ const TopBanner = () => {
               {isViewingClient && clientName ? getDisplayName() : (location.pathname.startsWith('/client/') ? t('plan.title') : 'Coach Piperubio')}
             </motion.h2>
             {/* Eslogan - Movido al centro, debajo del título principal */}
-            {isCoach && isHomePage && (
+            {isCoach && (coachSlogan || 'Prof. Deporte | Halterofilia') && (
               <motion.p 
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -438,7 +468,7 @@ const TopBanner = () => {
                   isScrolled ? 'text-[9px] sm:text-[8px] lg:text-xs' : 'text-[9px] sm:text-[10px] lg:text-sm'
                 } mt-[-2px]`}
               >
-                Prof. Deporte | Halterofilia
+                {coachSlogan || 'Prof. Deporte | Halterofilia'}
               </motion.p>
             )}
           </motion.div>
@@ -550,6 +580,13 @@ const TopBanner = () => {
                         }`}>
                           {user.email}
                         </p>
+                        {isCoach && coachSlogan && (
+                          <p className={`text-xs mt-1 ${
+                            theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
+                          }`}>
+                            {coachSlogan}
+                          </p>
+                        )}
                       </div>
 
                       {/* Opciones del menú */}
